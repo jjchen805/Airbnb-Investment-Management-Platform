@@ -1,0 +1,15 @@
+# ========================
+# Mac system files
+# ========================
+.DS_Store
+**/.DS_Store
+
+# ========================
+# Large datasets (DO NOT PUSH)
+# ========================
+data/raw/
+data/processed/
+
+# Keep folders but ignore contents
+!data/raw/.gitkeep
+!data/processed/.gitkeep

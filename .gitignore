@@ -1,16 +1,10 @@
-# ========================
-# Mac system files
-# ========================
+# Data files
+data/
+
+# Model files
+models/
+
+# Python cache
+__pycache__/
+*.pyc
 .DS_Store
-**/.DS_Store
-
-# ========================
-# Large datasets (DO NOT PUSH)
-# ========================
-data/raw/
-data/processed/
-outputs/
-
-# Keep folders but ignore contents
-!data/raw/.gitkeep
-!data/processed/.gitkeep

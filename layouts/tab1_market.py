@@ -14,22 +14,21 @@ def market_layout(meta: dict):
 
         # ── KPI Cards ─────────────────────────────────────────────────────────
         dbc.Row([
-            dbc.Col(_kpi_card("inv-kpi-listings",  "Listings shown",       "—",    "bi-house-door"),      md=3),
-            dbc.Col(_kpi_card("inv-kpi-price",     "Avg nightly price",    "—",    "bi-currency-dollar"), md=3),
-            dbc.Col(_kpi_card("inv-kpi-superhost", "Superhost %",          "—",    "bi-star"),            md=3),
-            dbc.Col(_kpi_card("inv-kpi-sentiment", "Avg sentiment score",  "—",    "bi-chat-heart"),      md=3),
-        ], className="mb-3 g-3"),
+            dbc.Col(_kpi_card("inv-kpi-listings",  "Listings shown",      "—", "bi-house-door",      "#0071E3"), md=3),
+            dbc.Col(_kpi_card("inv-kpi-price",     "Avg nightly price",   "—", "bi-currency-dollar", "#FF9F0A"), md=3),
+            dbc.Col(_kpi_card("inv-kpi-superhost", "Superhost %",         "—", "bi-star",            "#FF375F"), md=3),
+            dbc.Col(_kpi_card("inv-kpi-sentiment", "Avg sentiment",       "—", "bi-chat-heart",      "#34C759"), md=3),
+        ], className="mb-4 g-3"),
 
-        # ── Main row: filters | map | detail card ─────────────────────────────
+        # ── Main row ───────────────────────────────────────────────────────────
         dbc.Row([
 
             # Left: Filters
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader("Filters", className="fw-semibold"),
                     dbc.CardBody([
 
-                        dbc.Label("Neighbourhood", className="small fw-semibold text-muted"),
+                        html.P("Neighbourhood", className="filter-section-label"),
                         dcc.Dropdown(
                             id="mkt-neighbourhood",
                             options=[{"label": "All", "value": "All"}] +
@@ -37,7 +36,7 @@ def market_layout(meta: dict):
                             value="All", clearable=False, className="mb-3",
                         ),
 
-                        dbc.Label("Room type", className="small fw-semibold text-muted"),
+                        html.P("Room type", className="filter-section-label"),
                         dcc.Dropdown(
                             id="mkt-room-type",
                             options=[{"label": "All", "value": "All"}] +
@@ -45,7 +44,7 @@ def market_layout(meta: dict):
                             value="All", clearable=False, className="mb-3",
                         ),
 
-                        dbc.Label("Property type", className="small fw-semibold text-muted"),
+                        html.P("Property type", className="filter-section-label"),
                         dcc.Dropdown(
                             id="mkt-property-type",
                             options=[{"label": "All", "value": "All"}] +
@@ -53,36 +52,39 @@ def market_layout(meta: dict):
                             value="All", clearable=False, className="mb-3",
                         ),
 
-                        dbc.Label("Price range ($/night)", className="small fw-semibold text-muted"),
+                        html.P("Price range ($/night)", className="filter-section-label"),
                         dcc.RangeSlider(
                             id="mkt-price-range",
                             min=10, max=3000, step=10,
                             value=[10, 3000],
-                            marks={10: "$10", 500: "$500", 1000: "$1k", 2000: "$2k", 3000: "$3k"},
+                            marks={10: "$10", 500: "$500", 1000: "$1k", 3000: "$3k"},
                             tooltip={"placement": "bottom", "always_visible": False},
                             className="mb-3",
                         ),
 
-                        dbc.Label("Superhost", className="small fw-semibold text-muted"),
+                        html.P("Superhost", className="filter-section-label"),
                         dbc.RadioItems(
                             id="mkt-superhost",
                             options=[
-                                {"label": "All",        "value": "all"},
-                                {"label": "Superhost",  "value": "yes"},
+                                {"label": "All",           "value": "all"},
+                                {"label": "Superhost",     "value": "yes"},
                                 {"label": "Non-superhost", "value": "no"},
                             ],
-                            value="all", inline=False, className="mb-4",
+                            value="all", inline=False,
+                            className="mb-4",
+                            style={"fontSize": "13px"},
                         ),
 
                         dbc.Button(
-                            [html.I(className="bi bi-arrow-counterclockwise me-1"), "Reset filters"],
+                            [html.I(className="bi bi-arrow-counterclockwise me-2"),
+                             "Reset filters"],
                             id="mkt-reset-btn",
                             color="outline-secondary",
                             size="sm",
                             className="w-100",
                         ),
                     ]),
-                ], className="shadow-sm h-100"),
+                ], className="h-100"),
             ], md=2),
 
             # Center: Map
@@ -94,8 +96,8 @@ def market_layout(meta: dict):
                             config={"scrollZoom": True, "displayModeBar": False},
                             style={"height": "620px"},
                         ),
-                    ], className="p-1"),
-                ], className="shadow-sm"),
+                    ], style={"padding": "6px !important"}),
+                ]),
             ], md=7),
 
             # Right: Detail card
@@ -104,124 +106,151 @@ def market_layout(meta: dict):
             ], md=3),
 
         ], className="g-3"),
-    ], className="p-3")
+    ], style={"padding": "24px"})
 
 
-# ── Sub-components ────────────────────────────────────────────────────────────
+# ── Sub-components ─────────────────────────────────────────────────────────────
 
-def _kpi_card(card_id, label, value, icon):
-    return dbc.Card([
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col(html.I(className=f"bi {icon} fs-3 text-primary"), width="auto"),
-                dbc.Col([
-                    html.P(label, className="text-muted small mb-0"),
-                    html.H4(value, id=card_id, className="fw-bold mb-0"),
-                ]),
-            ], align="center"),
-        ]),
-    ], className="shadow-sm h-100")
+def _kpi_card(card_id, label, value, icon, accent):
+    return html.Div([
+        dbc.Row([
+            dbc.Col(
+                html.Div(
+                    html.I(className=f"bi {icon}",
+                           style={"fontSize": "20px", "color": accent}),
+                    style={
+                        "width": "40px", "height": "40px",
+                        "borderRadius": "10px",
+                        "background": f"{accent}14",
+                        "display": "flex", "alignItems": "center",
+                        "justifyContent": "center",
+                    }
+                ),
+                width="auto"
+            ),
+            dbc.Col([
+                html.P(label, className="kpi-label mb-0"),
+                html.Div(value, id=card_id, className="kpi-value"),
+            ]),
+        ], align="center", className="g-2"),
+    ], className="kpi-card")
 
 
 def _empty_detail_card():
     return dbc.Card([
         dbc.CardBody([
             html.Div([
-                html.I(className="bi bi-cursor-fill fs-1 text-muted"),
-                html.P("Click a listing on the map to see details.",
-                       className="text-muted small mt-2 text-center"),
-            ], className="d-flex flex-column align-items-center justify-content-center",
-               style={"minHeight": "300px"}),
-        ])
-    ], className="shadow-sm h-100")
+                html.Div(
+                    html.I(className="bi bi-cursor",
+                           style={"fontSize": "28px", "color": "#C7C7CC"}),
+                    style={"marginBottom": "12px"},
+                ),
+                html.P("Click a listing on the map",
+                       style={"fontSize": "14px", "color": "#AEAEB2",
+                              "textAlign": "center", "margin": 0}),
+            ], style={
+                "display": "flex", "flexDirection": "column",
+                "alignItems": "center", "justifyContent": "center",
+                "minHeight": "300px",
+            }),
+        ]),
+    ])
 
 
 def build_detail_card(row: dict):
-    """Build the listing detail card from a clicked map point."""
+    superhost     = row.get("host_is_superhost", 0)
+    price         = row.get("price_clean")
+    price_str     = f"${price:,.0f} / night" if price and price == price else "N/A"
+    sentiment     = row.get("sentiment_polarity_mean")
+    sent_str      = f"{sentiment:.2f}" if sentiment == sentiment and sentiment is not None else "N/A"
+    reviews       = int(row.get("number_of_reviews", 0))
+    amenities     = int(row.get("amenity_count", 0))
 
-    superhost = row.get("host_is_superhost", 0)
-    superhost_badge = dbc.Badge("⭐ Superhost", color="warning", className="me-1") if superhost else dbc.Badge("Non-superhost", color="secondary")
-
-    price      = row.get("price_clean")
-    price_str  = f"${price:,.0f} / night" if price and price == price else "N/A"
-
-    sentiment  = row.get("sentiment_polarity_mean")
-    sent_str   = f"{sentiment:.2f}" if sentiment == sentiment and sentiment is not None else "N/A"
-
-    reviews    = int(row.get("number_of_reviews", 0))
-    amenities  = int(row.get("amenity_count", 0))
-
-    # Theme scores for radar
     themes = {
-        "Cleanliness":    row.get("theme_cleanliness_mean"),
-        "Communication":  row.get("theme_communication_mean"),
-        "Check-in":       row.get("theme_checkin_mean"),
-        "Location":       row.get("theme_location_mean"),
-        "Amenities":      row.get("theme_amenities_mean"),
-        "Value":          row.get("theme_value_mean"),
-        "Comfort":        row.get("theme_comfort_mean"),
-        "Accuracy":       row.get("theme_accuracy_mean"),
+        "Cleanliness":   row.get("theme_cleanliness_mean"),
+        "Communication": row.get("theme_communication_mean"),
+        "Check-in":      row.get("theme_checkin_mean"),
+        "Location":      row.get("theme_location_mean"),
+        "Amenities":     row.get("theme_amenities_mean"),
+        "Value":         row.get("theme_value_mean"),
+        "Comfort":       row.get("theme_comfort_mean"),
+        "Accuracy":      row.get("theme_accuracy_mean"),
     }
 
+    superhost_pill = html.Span(
+        "⭐ Superhost" if superhost else "Non-superhost",
+        style={
+            "fontSize": "11px", "fontWeight": "600",
+            "padding": "3px 10px", "borderRadius": "20px",
+            "background": "#FFF3CD" if superhost else "#F2F2F7",
+            "color": "#92600A" if superhost else "#6E6E73",
+        }
+    )
+
     return dbc.Card([
-        dbc.CardHeader([
-            html.Span(row.get("name", "Listing"), className="fw-semibold small"),
-        ]),
         dbc.CardBody([
+            # Name + badge
+            html.P(row.get("name", "Listing")[:48],
+                   style={"fontSize": "14px", "fontWeight": "600",
+                          "color": "#1D1D1F", "marginBottom": "8px",
+                          "lineHeight": "1.3"}),
+            html.Div(superhost_pill, style={"marginBottom": "16px"}),
 
-            # Badges
-            html.Div([superhost_badge], className="mb-2"),
+            # Info rows
+            *[_detail_row(icon, text) for icon, text in [
+                ("bi-geo-alt",        row.get("neighbourhood_cleansed", "—")),
+                ("bi-house",          row.get("room_type", "—")),
+                ("bi-currency-dollar",price_str),
+                ("bi-chat-left-text", f"{reviews} reviews"),
+                ("bi-emoji-smile",    f"Sentiment {sent_str}"),
+                ("bi-check2-all",     f"{amenities} amenities"),
+            ]],
 
-            # Core info
-            _detail_row("bi-geo-alt",      row.get("neighbourhood_cleansed", "—")),
-            _detail_row("bi-house",        row.get("room_type", "—")),
-            _detail_row("bi-building",     row.get("property_type", "—")),
-            _detail_row("bi-currency-dollar", price_str),
-            _detail_row("bi-chat-left-text", f"{reviews} reviews"),
-            _detail_row("bi-emoji-smile",  f"Sentiment: {sent_str}"),
-            _detail_row("bi-check2-all",   f"{amenities} amenities"),
+            html.Hr(),
 
-            html.Hr(className="my-2"),
-
-            # Review theme bars
-            html.P("Review themes", className="small fw-semibold text-muted mb-2"),
+            # Theme bars
+            html.P("Review themes",
+                   style={"fontSize": "11px", "fontWeight": "600",
+                          "color": "#AEAEB2", "textTransform": "uppercase",
+                          "letterSpacing": "0.5px", "marginBottom": "10px"}),
             *[_theme_bar(label, score) for label, score in themes.items()
               if score is not None and score == score],
 
-            # Link to listing
             html.Div(
                 html.A("View on Airbnb →",
                        href=row.get("listing_url", "#"),
                        target="_blank",
-                       className="small text-primary"),
-                className="mt-2"
+                       style={"fontSize": "13px", "color": "#0071E3",
+                              "textDecoration": "none", "fontWeight": "500"}),
+                style={"marginTop": "12px"}
             ),
         ]),
-    ], className="shadow-sm")
+    ])
 
 
 def _detail_row(icon, text):
-    return dbc.Row([
-        dbc.Col(html.I(className=f"bi {icon} text-muted"), width=1),
-        dbc.Col(html.Span(str(text), className="small"), width=11),
-    ], className="mb-1 align-items-center")
+    return html.Div([
+        html.I(className=f"bi {icon}",
+               style={"fontSize": "13px", "color": "#AEAEB2",
+                      "width": "18px", "marginRight": "8px"}),
+        html.Span(str(text), style={"fontSize": "13px", "color": "#3A3A3C"}),
+    ], style={"display": "flex", "alignItems": "center", "marginBottom": "6px"})
 
 
 def _theme_bar(label: str, score: float):
-    """Mini horizontal bar for a review theme score (0–1 range)."""
     pct   = min(int(score * 100), 100)
-    color = "#198754" if score > 0.5 else "#ffc107" if score > 0.2 else "#dc3545"
+    color = "#34C759" if score > 0.5 else "#FF9F0A" if score > 0.2 else "#FF3B30"
     return html.Div([
-        dbc.Row([
-            dbc.Col(html.Span(label, className="text-muted", style={"fontSize": "11px"}), width=5),
-            dbc.Col(
-                html.Div(
-                    html.Div(style={
-                        "width": f"{pct}%", "height": "6px",
-                        "background": color, "borderRadius": "3px",
-                    }),
-                    style={"background": "#e9ecef", "borderRadius": "3px"},
-                ), width=7
+        html.Div([
+            html.Span(label, style={"fontSize": "12px", "color": "#6E6E73", "width": "90px"}),
+            html.Div(
+                html.Div(style={
+                    "width": f"{pct}%", "height": "5px",
+                    "background": color, "borderRadius": "3px",
+                    "transition": "width 0.4s ease",
+                }),
+                style={"flex": "1", "background": "#F2F2F7",
+                       "borderRadius": "3px", "height": "5px"},
             ),
-        ], align="center", className="mb-1")
-    ])
+        ], style={"display": "flex", "alignItems": "center", "gap": "10px"}),
+    ], style={"marginBottom": "7px"})

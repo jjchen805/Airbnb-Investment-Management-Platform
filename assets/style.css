@@ -1,0 +1,296 @@
+/* ─────────────────────────────────────────────────────────────
+   Airbnb Intelligence Platform — Design System
+   Inspired by Apple.com: SF Pro typography, generous whitespace,
+   soft depth hierarchy, minimal borders.
+───────────────────────────────────────────────────────────── */
+
+/* ── Typography ──────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+body, .dash-application {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+               "Inter", "Helvetica Neue", Arial, sans-serif;
+  background-color: #F5F5F7;   /* Apple's page background */
+  color: #1D1D1F;              /* Apple's primary text */
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+               "Inter", "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: -0.3px;
+  color: #1D1D1F;
+}
+
+/* ── App canvas ──────────────────────────────────────────── */
+#page-content {
+  min-height: 100vh;
+}
+
+/* ── Cards — borderless, soft shadow ────────────────────── */
+.card {
+  border: none !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.04) !important;
+  background: #FFFFFF;
+}
+
+.card-header {
+  background: transparent !important;
+  border-bottom: 1px solid #F2F2F7 !important;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  color: #6E6E73;
+  padding: 16px 20px 14px !important;
+  text-transform: uppercase;
+}
+
+.card-body {
+  padding: 20px !important;
+}
+
+/* ── Navbar ──────────────────────────────────────────────── */
+.navbar {
+  background: rgba(29,29,31,0.92) !important;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.navbar-brand {
+  font-weight: 500 !important;
+  font-size: 16px !important;
+  letter-spacing: -0.2px;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.nav-tabs {
+  border-bottom: 1px solid #E5E5EA !important;
+}
+
+.nav-tabs .nav-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6E6E73;
+  border: none !important;
+  padding: 10px 18px;
+  border-radius: 0;
+  transition: color 0.15s;
+}
+
+.nav-tabs .nav-link:hover {
+  color: #1D1D1F;
+}
+
+.nav-tabs .nav-link.active {
+  color: #0071E3 !important;
+  border-bottom: 2px solid #0071E3 !important;
+  background: transparent !important;
+  font-weight: 600;
+}
+
+/* Dash dcc.Tabs override */
+.dash-tabs { border-bottom: 1px solid #E5E5EA !important; }
+.dash-tab {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #6E6E73 !important;
+  border: none !important;
+  padding: 10px 20px !important;
+  background: transparent !important;
+}
+.dash-tab--selected {
+  color: #0071E3 !important;
+  border-bottom: 2px solid #0071E3 !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  border-radius: 980px !important;  /* Apple pill shape */
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  padding: 9px 22px !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn-primary {
+  background: #0071E3 !important;
+  border-color: #0071E3 !important;
+}
+.btn-primary:hover {
+  background: #0077ED !important;
+  box-shadow: 0 4px 12px rgba(0,113,227,0.3) !important;
+}
+
+.btn-success {
+  background: #34C759 !important;
+  border-color: #34C759 !important;
+}
+.btn-warning {
+  background: #FF9F0A !important;
+  border-color: #FF9F0A !important;
+  color: #fff !important;
+}
+.btn-outline-secondary {
+  border-color: #D1D1D6 !important;
+  color: #6E6E73 !important;
+  border-radius: 8px !important;
+}
+.btn-outline-secondary:hover {
+  background: #F5F5F7 !important;
+  color: #1D1D1F !important;
+}
+.btn-outline-light {
+  border-color: rgba(255,255,255,0.3) !important;
+  font-size: 13px !important;
+  padding: 6px 14px !important;
+}
+.btn-lg {
+  padding: 13px 28px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 14px !important;
+}
+
+/* ── Dropdowns ───────────────────────────────────────────── */
+.Select-control, .VirtualizedSelectFocusedOption,
+.Select--single > .Select-control {
+  border: 1px solid #D1D1D6 !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+}
+
+/* ── Inputs ──────────────────────────────────────────────── */
+.form-control {
+  border: 1px solid #D1D1D6 !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+.form-control:focus {
+  border-color: #0071E3 !important;
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.15) !important;
+}
+
+/* ── Labels ──────────────────────────────────────────────── */
+.form-label, label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #6E6E73 !important;
+  margin-bottom: 5px !important;
+}
+
+/* ── Badges ──────────────────────────────────────────────── */
+.badge {
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+}
+
+/* ── Alerts ──────────────────────────────────────────────── */
+.alert {
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 13px !important;
+}
+.alert-info {
+  background: #EBF5FB !important;
+  color: #0C5C8A !important;
+}
+
+/* ── Progress bars ───────────────────────────────────────── */
+.progress {
+  border-radius: 8px !important;
+  background: #F2F2F7 !important;
+}
+.progress-bar { border-radius: 8px !important; }
+
+/* ── KPI cards ───────────────────────────────────────────── */
+.kpi-card {
+  border-radius: 16px !important;
+  background: #FFFFFF;
+  padding: 20px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.kpi-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6E6E73;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.kpi-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1D1D1F;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+/* ── Filter panel ────────────────────────────────────────── */
+.filter-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #AEAEB2;
+  margin-bottom: 6px;
+  margin-top: 14px;
+}
+.filter-section-label:first-child { margin-top: 0; }
+
+/* ── Home page cards ─────────────────────────────────────── */
+.user-type-card {
+  border-radius: 20px !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  cursor: pointer;
+}
+.user-type-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.10) !important;
+}
+
+/* ── Recommendation cards ────────────────────────────────── */
+.rec-card {
+  border-left: 3px solid #0071E3 !important;
+  border-radius: 12px !important;
+  padding: 16px 20px !important;
+  background: #FFFFFF;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+/* ── SHAP bars ───────────────────────────────────────────── */
+.shap-track {
+  background: #F2F2F7;
+  border-radius: 6px;
+  height: 10px;
+  overflow: hidden;
+}
+.shap-bar-up   { background: #34C759; border-radius: 6px; height: 10px; transition: width 0.4s ease; }
+.shap-bar-down { background: #FF3B30; border-radius: 6px; height: 10px; transition: width 0.4s ease; }
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C7C7CC; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #AEAEB2; }
+
+/* ── Misc ────────────────────────────────────────────────── */
+hr {
+  border-color: #F2F2F7 !important;
+  opacity: 1 !important;
+}
+
+.text-muted { color: #6E6E73 !important; }
+
+.list-group-item {
+  border-color: #F2F2F7 !important;
+  padding: 14px 0 !important;
+}

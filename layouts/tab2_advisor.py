@@ -11,11 +11,11 @@ AMENITY_LABELS = {
     "has_washer":          "Washer",
     "has_dryer":           "Dryer",
     "has_parking":         "Parking",
-    "has_air_conditioning":"Air conditioning",
+    "has_air_conditioning":"AC",
     "has_heating":         "Heating",
     "has_tv":              "TV",
     "has_self_check-in":   "Self check-in",
-    "has_coffee":          "Coffee maker",
+    "has_coffee":          "Coffee",
     "has_hair_dryer":      "Hair dryer",
     "has_iron":            "Iron",
     "has_gym":             "Gym",
@@ -24,12 +24,22 @@ AMENITY_LABELS = {
     "has_elevator":        "Elevator",
 }
 
+# Apple system colors
+C = {
+    "blue":   "#0071E3",
+    "green":  "#34C759",
+    "orange": "#FF9F0A",
+    "red":    "#FF3B30",
+    "gray1":  "#1D1D1F",
+    "gray2":  "#3A3A3C",
+    "gray3":  "#6E6E73",
+    "gray4":  "#AEAEB2",
+    "gray5":  "#C7C7CC",
+    "gray6":  "#F2F2F7",
+}
+
 
 def advisor_layout(df_listings, selected_listing_id=None):
-    """
-    df_listings : the full dashboard DataFrame (for populating dropdown)
-    selected_listing_id : pre-selected from Tab 1 map click via dcc.Store
-    """
     listing_options = [
         {"label": f"{row['name'][:45]}  —  {row['neighbourhood_top']}", "value": row["id"]}
         for _, row in df_listings[["id", "name", "neighbourhood_top"]]
@@ -39,74 +49,80 @@ def advisor_layout(df_listings, selected_listing_id=None):
     ]
 
     return html.Div([
-        html.H4("Superhost Advisor", className="mt-3 mb-1 fw-semibold"),
-        html.P(
-            "Select an existing listing to see its Superhost potential, "
-            "key weaknesses, and actionable recommendations.",
-            className="text-muted mb-3"
-        ),
+        # Page header
+        html.Div([
+            html.H4("Superhost Advisor",
+                    style={"fontSize": "22px", "fontWeight": "700",
+                           "color": C["gray1"], "marginBottom": "4px"}),
+            html.P("Select an existing listing to see its Superhost potential, "
+                   "weaknesses, and actionable recommendations.",
+                   style={"fontSize": "14px", "color": C["gray3"], "margin": 0}),
+        ], style={"marginBottom": "24px"}),
 
         # Listing selector
         dbc.Row([
             dbc.Col([
                 dbc.InputGroup([
-                    dbc.InputGroupText(html.I(className="bi bi-search")),
+                    dbc.InputGroupText(
+                        html.I(className="bi bi-search",
+                               style={"color": C["gray4"], "fontSize": "13px"}),
+                        style={"background": "#fff", "border": f"1px solid #D1D1D6",
+                               "borderRight": "none", "borderRadius": "10px 0 0 10px"}
+                    ),
                     dcc.Dropdown(
                         id="adv-listing-select",
                         options=listing_options,
                         value=selected_listing_id,
                         placeholder="Search or select a listing...",
                         clearable=True,
-                        style={"flex": "1"},
+                        style={"flex": "1", "fontSize": "14px"},
                     ),
                 ]),
             ], md=8),
             dbc.Col([
-                dbc.Alert(
-                    [html.I(className="bi bi-info-circle me-2"),
-                     "Or click a listing on the Map Explorer tab to auto-select it here."],
-                    color="info", className="py-2 mb-0 small",
-                ),
+                html.Div([
+                    html.I(className="bi bi-info-circle",
+                           style={"color": C["blue"], "marginRight": "8px", "fontSize": "13px"}),
+                    html.Span("Or click a listing on the Market Explorer map.",
+                              style={"fontSize": "13px", "color": C["gray3"]}),
+                ], style={
+                    "background": "#EBF5FB", "borderRadius": "10px",
+                    "padding": "10px 14px", "display": "flex", "alignItems": "center",
+                }),
             ], md=4),
-        ], className="mb-4 align-items-center"),
+        ], className="mb-4 align-items-center g-3"),
 
-        # Output panel — populated by callback
+        # Output panel
         html.Div(id="adv-output-panel", children=[_empty_panel()]),
 
-    ], className="p-3")
+    ], style={"padding": "24px"})
 
 
 def _empty_panel():
     return dbc.Card([
         dbc.CardBody([
             html.Div([
-                html.I(className="bi bi-stars fs-1 text-muted"),
+                html.I(className="bi bi-stars",
+                       style={"fontSize": "32px", "color": C["gray5"]}),
                 html.P("Select a listing above to see its Superhost analysis.",
-                       className="text-muted text-center mt-3"),
-            ], className="d-flex flex-column align-items-center justify-content-center py-5")
-        ])
-    ], className="shadow-sm")
+                       style={"fontSize": "14px", "color": C["gray4"],
+                              "textAlign": "center", "margin": "12px 0 0"}),
+            ], style={
+                "display": "flex", "flexDirection": "column",
+                "alignItems": "center", "justifyContent": "center",
+                "padding": "60px 0",
+            }),
+        ]),
+    ])
 
 
-# ── Output panel builder ──────────────────────────────────────────────────────
-
-def build_advisor_panel(row: dict, shap_drivers: list, recommendations: list, strengths: list, weaknesses: list):
-    """
-    row             : listing row as dict from dashboard_listings.csv
-    shap_drivers    : list of {label, shap_val, direction} sorted by abs(shap_val)
-    recommendations : list of {title, reason, impact} dicts
-    strengths       : list of str
-    weaknesses      : list of str
-    """
+def build_advisor_panel(row, shap_drivers, recommendations, strengths, weaknesses):
     return dbc.Row([
-        # Left column: overview + probability + strengths/weaknesses
         dbc.Col([
             _overview_card(row),
             _probability_card(row),
             _strengths_weaknesses_card(strengths, weaknesses),
         ], md=4),
-
-        # Right column: recommendations + SHAP chart
         dbc.Col([
             _recommendations_card(recommendations),
             _shap_chart_card(shap_drivers, row),
@@ -123,244 +139,275 @@ def _overview_card(row: dict):
     has_pic   = row.get("host_has_profile_pic_num", 0)
     verified  = row.get("host_identity_verified_num", 0)
 
-    # Key amenities present/missing
     key_amenities = ["has_wifi", "has_kitchen", "has_self_check-in",
                      "has_parking", "has_air_conditioning", "has_tv"]
-    amenity_chips = []
-    for col in key_amenities:
+
+    def amenity_pill(col):
         label   = AMENITY_LABELS.get(col, col)
         present = row.get(col, 0)
-        amenity_chips.append(
-            dbc.Badge(
-                [html.I(className=f"bi {'bi-check' if present else 'bi-x'} me-1"), label],
-                color="success" if present else "danger",
-                className="me-1 mb-1",
-            )
+        return html.Span(
+            [html.I(className=f"bi {'bi-check' if present else 'bi-x'}",
+                    style={"marginRight": "3px"}), label],
+            style={
+                "fontSize": "11px", "fontWeight": "500",
+                "padding": "3px 8px", "borderRadius": "6px",
+                "marginRight": "4px", "marginBottom": "4px",
+                "display": "inline-block",
+                "background": "#D1F5D3" if present else "#FFE5E5",
+                "color": "#1A7431" if present else "#9B1B1B",
+            }
         )
 
     return dbc.Card([
-        dbc.CardHeader("📋 Listing Overview"),
         dbc.CardBody([
-            html.H6(row.get("name", "—")[:50], className="fw-semibold mb-3"),
+            html.P(row.get("name", "—")[:50],
+                   style={"fontSize": "15px", "fontWeight": "600",
+                          "color": C["gray1"], "marginBottom": "16px",
+                          "lineHeight": "1.3"}),
 
-            _info_row("bi-star-fill",
-                      "Superhost" if superhost else "Not a superhost",
-                      "text-warning" if superhost else "text-muted"),
-            _info_row("bi-currency-dollar",
-                      f"${price:,.0f} / night" if price and price == price else "N/A"),
-            _info_row("bi-chat-dots",
-                      f"Response rate: {response:.0f}%" if response and response == response else "Response rate: N/A"),
-            _info_row("bi-emoji-smile",
-                      f"Sentiment: {sentiment:.2f}" if sentiment and sentiment == sentiment else "Sentiment: N/A"),
-            _info_row("bi-person-check" if has_pic else "bi-person-x",
-                      "Profile picture set" if has_pic else "No profile picture",
-                      "text-success" if has_pic else "text-danger"),
-            _info_row("bi-shield-check" if verified else "bi-shield-x",
-                      "Identity verified" if verified else "Identity not verified",
-                      "text-success" if verified else "text-danger"),
+            *[_info_row(icon, text, accent) for icon, text, accent in [
+                ("bi-star-fill",
+                 "Superhost" if superhost else "Not a superhost",
+                 C["orange"] if superhost else C["gray4"]),
+                ("bi-currency-dollar",
+                 f"${price:,.0f} / night" if price and price == price else "N/A",
+                 C["gray3"]),
+                ("bi-chat-dots",
+                 f"Response rate: {response:.0f}%" if response and response == response else "Response rate: N/A",
+                 C["gray3"]),
+                ("bi-emoji-smile",
+                 f"Sentiment: {sentiment:.2f}" if sentiment and sentiment == sentiment else "Sentiment: N/A",
+                 C["gray3"]),
+                ("bi-person-check" if has_pic else "bi-person-x",
+                 "Profile picture set" if has_pic else "No profile picture",
+                 C["green"] if has_pic else C["red"]),
+                ("bi-shield-check" if verified else "bi-shield-x",
+                 "Identity verified" if verified else "Identity not verified",
+                 C["green"] if verified else C["red"]),
+            ]],
 
-            html.Hr(className="my-2"),
-            html.P(f"Amenities: {amenities} total", className="small text-muted mb-1"),
-            html.Div(amenity_chips),
+            html.Hr(style={"margin": "14px 0"}),
+            html.P(f"{amenities} amenities",
+                   style={"fontSize": "11px", "fontWeight": "600",
+                          "color": C["gray4"], "textTransform": "uppercase",
+                          "letterSpacing": "0.5px", "marginBottom": "8px"}),
+            html.Div([amenity_pill(col) for col in key_amenities]),
         ]),
-    ], className="shadow-sm mb-3")
+    ], className="mb-3")
 
 
 def _probability_card(row: dict):
-    prob       = row.get("superhost_probability", 0.5)
-    prob_pct   = int(prob * 100)
-    is_sh      = row.get("host_is_superhost", 0)
+    prob     = row.get("superhost_probability", 0.5)
+    prob_pct = int(prob * 100)
+    is_sh    = row.get("host_is_superhost", 0)
 
     if prob >= 0.65:
-        label, color, icon = "High potential",     "success", "bi-trophy-fill"
+        label, bar_color, text_color = "High potential",     C["green"],  "#1A7431"
     elif prob >= 0.40:
-        label, color, icon = "Moderate potential", "warning", "bi-graph-up"
+        label, bar_color, text_color = "Moderate potential", C["orange"], "#92600A"
     else:
-        label, color, icon = "Low potential",      "danger",  "bi-exclamation-triangle"
+        label, bar_color, text_color = "Low potential",      C["red"],    "#9B1B1B"
 
-    # If already a superhost, contextualise differently
     context = (
-        "This listing is already a Superhost — the score reflects how strongly "
-        "the model associates its features with Superhost status."
+        "Already a Superhost — score reflects model confidence in this status."
         if is_sh else
-        "The model estimates this listing's likelihood of achieving Superhost status "
-        "based on host setup, amenities, and review patterns."
+        "Estimated likelihood of achieving Superhost status."
     )
 
     return dbc.Card([
-        dbc.CardHeader("⭐ Superhost Probability"),
         dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.H1(f"{prob_pct}%",
-                            className=f"display-4 fw-bold text-{color} mb-0",
-                            style={"letterSpacing": "-2px"}),
-                    dbc.Badge(
-                        [html.I(className=f"bi {icon} me-1"), label],
-                        color=color, className="mt-1"
-                    ),
-                ], width=5),
-                dbc.Col([
-                    dbc.Progress(
-                        value=prob_pct,
-                        color=color,
-                        style={"height": "12px", "borderRadius": "6px"},
-                        className="mb-2",
-                    ),
-                    html.P(context, className="small text-muted mb-0"),
-                ], width=7),
-            ], align="center"),
+            html.Div([
+                html.Span(f"{prob_pct}%",
+                          style={"fontSize": "48px", "fontWeight": "700",
+                                 "color": bar_color, "letterSpacing": "-2px",
+                                 "lineHeight": "1"}),
+                html.Span(label,
+                          style={"fontSize": "12px", "fontWeight": "600",
+                                 "color": text_color, "background": f"{bar_color}18",
+                                 "padding": "3px 10px", "borderRadius": "6px",
+                                 "marginLeft": "10px"}),
+            ], style={"display": "flex", "alignItems": "center", "marginBottom": "12px"}),
+            html.Div(
+                html.Div(style={
+                    "width": f"{prob_pct}%",
+                    "height": "6px",
+                    "background": bar_color,
+                    "borderRadius": "3px",
+                    "transition": "width 0.5s ease",
+                }),
+                style={"background": C["gray6"], "borderRadius": "3px",
+                       "height": "6px", "marginBottom": "12px"},
+            ),
+            html.P(context,
+                   style={"fontSize": "12px", "color": C["gray3"], "margin": 0}),
         ]),
-    ], className="shadow-sm mb-3")
+    ], className="mb-3")
 
 
-def _strengths_weaknesses_card(strengths: list, weaknesses: list):
-    def make_items(items, icon, text_class):
-        if not items:
-            return html.P("None identified", className="text-muted small")
-        return html.Ul([
-            html.Li([html.I(className=f"bi {icon} me-2 {text_class}"), item],
-                    className="small mb-1")
-            for item in items
-        ], className="ps-2 mb-0", style={"listStyle": "none"})
+def _strengths_weaknesses_card(strengths, weaknesses):
+    def items(lst, color, icon):
+        if not lst:
+            return html.P("None identified",
+                          style={"fontSize": "13px", "color": C["gray4"]})
+        return html.Div([
+            html.Div([
+                html.I(className=f"bi {icon}",
+                       style={"color": color, "fontSize": "12px",
+                              "marginRight": "6px", "flexShrink": "0"}),
+                html.Span(item, style={"fontSize": "13px", "color": C["gray2"]}),
+            ], style={"display": "flex", "alignItems": "flex-start",
+                      "marginBottom": "6px"})
+            for item in lst
+        ])
 
     return dbc.Card([
-        dbc.CardHeader("🔍 Strengths vs Weaknesses"),
         dbc.CardBody([
             dbc.Row([
                 dbc.Col([
-                    html.P("Strengths", className="fw-semibold text-success small mb-2"),
-                    make_items(strengths, "bi-check-circle-fill", "text-success"),
+                    html.P("Strengths",
+                           style={"fontSize": "11px", "fontWeight": "600",
+                                  "color": C["green"], "textTransform": "uppercase",
+                                  "letterSpacing": "0.5px", "marginBottom": "10px"}),
+                    items(strengths, C["green"], "bi-check-circle-fill"),
                 ], width=6),
                 dbc.Col([
-                    html.P("Needs improvement", className="fw-semibold text-danger small mb-2"),
-                    make_items(weaknesses, "bi-x-circle-fill", "text-danger"),
+                    html.P("Needs work",
+                           style={"fontSize": "11px", "fontWeight": "600",
+                                  "color": C["red"], "textTransform": "uppercase",
+                                  "letterSpacing": "0.5px", "marginBottom": "10px"}),
+                    items(weaknesses, C["red"], "bi-x-circle-fill"),
                 ], width=6),
             ]),
         ]),
-    ], className="shadow-sm")
+    ])
 
 
-def _recommendations_card(recommendations: list):
+def _recommendations_card(recommendations):
     if not recommendations:
         return dbc.Card([
-            dbc.CardHeader("💡 Top Recommendations"),
-            dbc.CardBody(html.P("No recommendations — this listing is already well-optimised.",
-                                className="text-muted small")),
-        ], className="shadow-sm mb-3")
+            dbc.CardBody(
+                html.P("No recommendations — this listing is already well-optimised.",
+                       style={"fontSize": "13px", "color": C["gray3"]})
+            ),
+        ], className="mb-3")
 
-    cards = []
+    impact_colors = {
+        "high":   (C["red"],    "#FFE5E5"),
+        "medium": (C["orange"], "#FFF3D6"),
+        "low":    (C["gray4"],  C["gray6"]),
+    }
+
+    items = []
     for i, rec in enumerate(recommendations):
-        impact_color = {"high": "danger", "medium": "warning", "low": "secondary"}.get(
-            rec.get("impact", "medium"), "secondary"
-        )
-        cards.append(
-            dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col(
-                            dbc.Badge(f"#{i+1}", color="primary",
-                                      className="rounded-circle px-2"),
-                            width="auto"
-                        ),
-                        dbc.Col([
-                            html.Span(rec["title"], className="fw-semibold small"),
-                            dbc.Badge(
-                                f"{rec.get('impact','').title()} impact",
-                                color=impact_color,
-                                className="ms-2 small",
-                            ),
-                        ]),
-                    ], align="center", className="mb-1"),
-                    html.P(rec["reason"], className="small text-muted mb-0 mt-1"),
-                ], className="py-2"),
-            ], className="mb-2 border-start border-primary border-3")
+        fg, bg = impact_colors.get(rec.get("impact", "low"), (C["gray4"], C["gray6"]))
+        items.append(
+            html.Div([
+                html.Div([
+                    html.Span(f"{i+1}",
+                              style={"fontSize": "11px", "fontWeight": "700",
+                                     "color": C["blue"], "background": "#E8F1FB",
+                                     "width": "22px", "height": "22px",
+                                     "borderRadius": "50%", "display": "flex",
+                                     "alignItems": "center", "justifyContent": "center",
+                                     "flexShrink": "0"}),
+                    html.Div([
+                        html.Div([
+                            html.Span(rec["title"],
+                                      style={"fontSize": "14px", "fontWeight": "600",
+                                             "color": C["gray1"]}),
+                            html.Span(rec.get("impact", "").title(),
+                                      style={"fontSize": "10px", "fontWeight": "600",
+                                             "color": fg, "background": bg,
+                                             "padding": "2px 7px", "borderRadius": "4px",
+                                             "marginLeft": "8px"}),
+                        ], style={"display": "flex", "alignItems": "center",
+                                  "marginBottom": "4px"}),
+                        html.P(rec["reason"],
+                               style={"fontSize": "13px", "color": C["gray3"],
+                                      "margin": 0, "lineHeight": "1.5"}),
+                    ]),
+                ], style={"display": "flex", "gap": "12px", "alignItems": "flex-start"}),
+            ], style={
+                "padding": "16px 20px",
+                "borderLeft": f"3px solid {C['blue']}",
+                "borderRadius": "12px",
+                "background": "#FAFAFA",
+                "marginBottom": "10px",
+            })
         )
 
     return dbc.Card([
-        dbc.CardHeader([
-            "💡 Top Recommendations",
-            html.Span(" — ranked by expected impact on Superhost probability",
-                      className="text-muted fw-normal small"),
+        dbc.CardBody([
+            html.P("TOP RECOMMENDATIONS",
+                   style={"fontSize": "11px", "fontWeight": "600",
+                          "color": C["gray4"], "letterSpacing": "0.8px",
+                          "marginBottom": "16px"}),
+            *items,
         ]),
-        dbc.CardBody(cards),
-    ], className="shadow-sm mb-3")
+    ], className="mb-3")
 
 
-def _shap_chart_card(shap_drivers: list, row: dict):
-    """
-    Waterfall-style SHAP bar chart showing what pushed this listing
-    toward or away from Superhost status.
-    """
+def _shap_chart_card(shap_drivers, row):
     if not shap_drivers:
         return html.Div()
 
     max_abs = max(abs(d["shap_val"]) for d in shap_drivers) or 1
+    is_sh   = row.get("host_is_superhost", 0)
 
     bars = []
     for d in shap_drivers:
-        pct_width  = int(abs(d["shap_val"]) / max_abs * 100)
-        color      = "#198754" if d["direction"] == "up" else "#dc3545"
-        sign       = "+" if d["direction"] == "up" else "−"
-        direction_label = "toward Superhost" if d["direction"] == "up" else "away from Superhost"
+        pct   = int(abs(d["shap_val"]) / max_abs * 100)
+        color = C["green"] if d["direction"] == "up" else C["red"]
+        sign  = "+" if d["direction"] == "up" else "−"
 
-        bars.append(
-            dbc.Row([
-                dbc.Col(
-                    html.Span(d["label"], className="text-muted",
-                              style={"fontSize": "12px"}),
-                    width=5
-                ),
-                dbc.Col(
-                    html.Div(
-                        html.Div(style={
-                            "width": f"{pct_width}%", "height": "10px",
-                            "background": color, "borderRadius": "4px",
-                            "transition": "width 0.4s ease",
-                        }),
-                        style={"background": "#e9ecef", "borderRadius": "4px"},
-                        title=f"{sign} pushes {direction_label}",
-                    ),
-                    width=5
-                ),
-                dbc.Col(
-                    html.Span(sign,
-                              style={"color": color, "fontSize": "14px", "fontWeight": "600"}),
-                    width=2
-                ),
-            ], align="center", className="mb-2")
-        )
+        bars.append(html.Div([
+            html.Span(d["label"],
+                      style={"fontSize": "12px", "color": C["gray3"],
+                             "width": "160px", "flexShrink": "0"}),
+            html.Div(
+                html.Div(style={
+                    "width": f"{pct}%", "height": "8px",
+                    "background": color, "borderRadius": "4px",
+                    "transition": "width 0.4s ease",
+                }),
+                style={"flex": "1", "background": C["gray6"],
+                       "borderRadius": "4px", "height": "8px"},
+            ),
+            html.Span(sign, style={"fontSize": "14px", "fontWeight": "700",
+                                   "color": color, "width": "16px",
+                                   "textAlign": "center", "flexShrink": "0"}),
+        ], style={"display": "flex", "alignItems": "center",
+                  "gap": "12px", "marginBottom": "10px"}))
 
-    is_sh    = row.get("host_is_superhost", 0)
     subtitle = (
-        "Factors that contributed most to this listing's Superhost classification."
+        "Features that contributed most to this listing's Superhost classification."
         if is_sh else
-        "Factors most influencing whether this listing could become a Superhost."
+        "Features most influencing this listing's Superhost probability."
     )
 
     return dbc.Card([
-        dbc.CardHeader([
-            "📊 Model Explanation (SHAP)",
-            html.Span(" — green pushes toward Superhost, red pushes away",
-                      className="text-muted fw-normal small"),
-        ]),
         dbc.CardBody([
-            html.P(subtitle, className="small text-muted mb-3"),
+            html.P("MODEL EXPLANATION (SHAP)",
+                   style={"fontSize": "11px", "fontWeight": "600",
+                          "color": C["gray4"], "letterSpacing": "0.8px",
+                          "marginBottom": "4px"}),
+            html.P(subtitle,
+                   style={"fontSize": "13px", "color": C["gray3"],
+                          "marginBottom": "20px"}),
             *bars,
-            html.Hr(className="my-2"),
             html.P(
-                "Computed using CatBoost TreeSHAP — values show each feature's "
-                "contribution to this specific listing's prediction.",
-                className="text-muted small mb-0"
+                "Computed using CatBoost TreeSHAP. Green = pushes toward Superhost, "
+                "red = pushes away.",
+                style={"fontSize": "11px", "color": C["gray4"], "margin": "12px 0 0"}
             ),
         ]),
-    ], className="shadow-sm")
+    ])
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _info_row(icon, text, text_class=""):
-    return dbc.Row([
-        dbc.Col(html.I(className=f"bi {icon} text-muted"), width=1),
-        dbc.Col(html.Span(str(text), className=f"small {text_class}"), width=11),
-    ], className="mb-1 align-items-center")
+def _info_row(icon, text, accent):
+    return html.Div([
+        html.I(className=f"bi {icon}",
+               style={"fontSize": "13px", "color": accent,
+                      "width": "18px", "marginRight": "8px", "flexShrink": "0"}),
+        html.Span(str(text), style={"fontSize": "13px", "color": C["gray2"]}),
+    ], style={"display": "flex", "alignItems": "center", "marginBottom": "7px"})

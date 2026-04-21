@@ -6,6 +6,23 @@ Output panel driven by local SHAP values + amenity gap analysis.
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 
+NEIGHBOURHOODS = [
+    "Bernal Heights", "Castro/Upper Market", "Chinatown",
+    "Downtown/Civic Center", "Excelsior", "Financial District",
+    "Haight Ashbury", "Inner Richmond", "Inner Sunset", "Marina",
+    "Mission", "Nob Hill", "Noe Valley", "North Beach", "Other",
+    "Outer Richmond", "Outer Sunset", "Pacific Heights",
+    "Russian Hill", "South of Market", "Western Addition",
+]
+
+PROPERTY_TYPES = [
+    "Entire condo", "Entire guest suite", "Entire home",
+    "Entire rental unit", "Entire serviced apartment",
+    "Private room in condo", "Private room in home",
+    "Private room in rental unit", "Room in boutique hotel",
+    "Room in hotel", "Other",
+]
+
 AMENITIES = [
     ("has_wifi",            "WiFi"),
     ("has_kitchen",         "Kitchen"),
@@ -44,7 +61,7 @@ def predictor_layout(meta: dict):
             dbc.Col([
 
                 dbc.Card([
-                    dbc.CardHeader("📍 Location"),
+                    dbc.CardHeader("LOCATION"),
                     dbc.CardBody([
                         dbc.Label("Neighbourhood"),
                         dcc.Dropdown(
@@ -53,10 +70,10 @@ def predictor_layout(meta: dict):
                             value="Mission", clearable=False,
                         ),
                     ]),
-                ], className="mb-3 shadow-sm"),
+                ], className="mb-3"),
 
                 dbc.Card([
-                    dbc.CardHeader("🏠 Property Setup"),
+                    dbc.CardHeader("PROPERTY SETUP"),
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
@@ -79,10 +96,10 @@ def predictor_layout(meta: dict):
                             dbc.Col([dbc.Label("Avail. / yr"),    dbc.Input(id="inv-availability-365", type="number", value=200, min=0, max=365)], width=4),
                         ]),
                     ]),
-                ], className="mb-3 shadow-sm"),
+                ], className="mb-3"),
 
                 dbc.Card([
-                    dbc.CardHeader("👤 Host Setup"),
+                    dbc.CardHeader("HOST SETUP"),
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
@@ -109,10 +126,10 @@ def predictor_layout(meta: dict):
                             ], width=6),
                         ]),
                     ]),
-                ], className="mb-3 shadow-sm"),
+                ], className="mb-3"),
 
                 dbc.Card([
-                    dbc.CardHeader("✨ Amenities"),
+                    dbc.CardHeader("AMENITIES"),
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col(
@@ -134,13 +151,14 @@ def predictor_layout(meta: dict):
                             ], width=6),
                         ]),
                     ]),
-                ], className="mb-3 shadow-sm"),
+                ], className="mb-3"),
 
                 dbc.Button(
                     "🔮  Predict Nightly Price",
                     id="inv-predict-btn",
-                    color="primary", size="lg",
+                    size="lg",
                     className="w-100 mb-4",
+                    style={"background": "#0071E3", "border": "none", "borderRadius": "14px", "fontSize": "15px", "fontWeight": "600"},
                     n_clicks=0,
                 ),
 
@@ -165,7 +183,7 @@ def _empty_output_panel():
                 ),
             ], className="py-5")
         ])
-    ], className="shadow-sm")
+    ], )
 
 
 # ── Output panel ──────────────────────────────────────────────────────────────
@@ -201,15 +219,15 @@ def _predicted_price_card(predicted_price):
             html.P("Predicted nightly price", className="text-muted mb-1 small"),
             html.H1(
                 f"${predicted_price:,.0f}",
-                className="display-4 fw-bold text-primary mb-0",
-                style={"letterSpacing": "-1px"},
+                className="display-4 fw-bold mb-0", 
+                style={"color": "#0071E3", "letterSpacing": "-2px"},
             ),
             html.P(
                 f"Estimated range: ${low:,.0f} – ${high:,.0f}",
                 className="text-muted small mt-1"
             ),
         ], className="text-center py-4")
-    ], className="shadow mb-3 border-primary border-2")
+    ], className="mb-3")
 
 
 def _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_nbhd, property_type, prop_median, pct_vs_prop):
@@ -219,7 +237,7 @@ def _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_
         return dbc.Badge(f"{sign}{pct:.1f}% vs avg", color=color, className="ms-2 fs-6")
 
     return dbc.Card([
-        dbc.CardHeader("📊 Market Comparison"),
+        dbc.CardHeader("MARKET COMPARISON"),
         dbc.CardBody([
             dbc.Row([
                 dbc.Col([
@@ -234,7 +252,7 @@ def _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_
                 ], width=6),
             ]),
         ])
-    ], className="shadow-sm mb-3")
+    ], className="mb-3")
 
 
 def _shap_drivers_card(drivers: list, predicted_price: float):
@@ -261,17 +279,17 @@ def _shap_drivers_card(drivers: list, predicted_price: float):
                     html.Div(
                         html.Div(style={
                             "width": f"{pct_width}%",
-                            "height": "10px",
+                            "height": "8px",
                             "background": color,
                             "borderRadius": "4px",
                             "transition": "width 0.4s ease",
                         }),
-                        style={"background": "#e9ecef", "borderRadius": "4px"}
+                        style={"background": "#F2F2F7", "borderRadius": "4px"}
                     ),
                     width=5
                 ),
                 dbc.Col(
-                    html.Span(dollar_str, style={"fontSize": "12px", "color": color, "fontWeight": "500"}),
+                    html.Span(dollar_str, style={"fontSize": "12px", "color": color, "fontWeight": "600"}),
                     width=2
                 ),
             ], align="center", className="mb-2")
@@ -279,7 +297,7 @@ def _shap_drivers_card(drivers: list, predicted_price: float):
 
     return dbc.Card([
         dbc.CardHeader([
-            "🔑 Key Price Drivers",
+            "KEY PRICE DRIVERS",
             html.Span(
                 " — how each factor pushed your price up or down from the SF baseline",
                 className="text-muted fw-normal small"
@@ -298,7 +316,7 @@ def _shap_drivers_card(drivers: list, predicted_price: float):
                 className="text-muted small mb-0"
             ),
         ])
-    ], className="shadow-sm mb-3")
+    ], className="mb-3")
 
 
 def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: float):
@@ -369,7 +387,7 @@ def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: floa
     )
 
     return dbc.Card([
-        dbc.CardHeader("💡 Investor Tips"),
+        dbc.CardHeader("INVESTOR TIPS"),
         dbc.CardBody([
             html.P(
                 "Based on your listing configuration and SF market data:",
@@ -377,4 +395,4 @@ def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: floa
             ),
             dbc.ListGroup(tip_items, flush=True),
         ])
-    ], className="shadow-sm")
+    ], )

@@ -44,16 +44,31 @@ AMENITIES = [
 
 DEFAULT_ON = {"has_wifi", "has_kitchen", "has_heating", "has_tv", "has_hair_dryer"}
 
+# Apple system colors
+C = {
+    "blue":   "#0071E3",
+    "green":  "#34C759",
+    "orange": "#FF9F0A",
+    "red":    "#FF3B30",
+    "gray1":  "#1D1D1F",
+    "gray2":  "#3A3A3C",
+    "gray3":  "#6E6E73",
+    "gray4":  "#AEAEB2",
+    "gray5":  "#C7C7CC",
+    "gray6":  "#F2F2F7",
+}
 
 def predictor_layout(meta: dict):
     neighbourhoods = sorted([r["neighbourhood_top"] for r in meta["neighbourhoods"]])
     property_types = sorted([r["property_type_simple"] for r in meta["property_types"]])
-    return dbc.Container([
-        html.H4("Investor Price Predictor", className="mt-3 mb-1 fw-semibold"),
+    return html.Div([
+        html.H4("Airbnb Price Predictor", 
+                style={"fontSize": "22px", "fontWeight": "700",
+                           "color": C["gray1"], "marginBottom": "4px"}),
         html.P(
             "Enter your planned listing details and get an ML-based nightly price estimate "
-            "benchmarked against the SF market.",
-            className="text-muted mb-4"
+            "benchmarked against the market.",
+            style={"fontSize": "14px", "color": C["gray3"], "marginBottom": "24px"},
         ),
 
         dbc.Row([
@@ -63,7 +78,7 @@ def predictor_layout(meta: dict):
                 dbc.Card([
                     dbc.CardHeader("LOCATION"),
                     dbc.CardBody([
-                        dbc.Label("Neighbourhood"),
+                        dbc.Label("Neighborhood"),
                         dcc.Dropdown(
                             id="inv-neighbourhood",
                             options=[{"label": n, "value": n} for n in neighbourhoods],
@@ -169,7 +184,7 @@ def predictor_layout(meta: dict):
                 html.Div(id="inv-output-panel", children=[_empty_output_panel()])
             ], md=7),
         ]),
-    ], fluid=True)
+    ], style={"padding": "24px 32px"})
 
 
 def _empty_output_panel():
@@ -207,7 +222,7 @@ def build_output_panel(result: dict):
         _predicted_price_card(predicted_price),
         _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_nbhd, property_type, prop_median, pct_vs_prop),
         _shap_drivers_card(drivers, predicted_price),
-        _amenity_tips_card(amenity_gaps, neighbourhood, pct_vs_nbhd),
+        _amenity_tips_card(amenity_gaps, neighbourhood, pct_vs_nbhd, result.get("city", "sf")),
     ])
 
 
@@ -241,7 +256,7 @@ def _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_
         dbc.CardBody([
             dbc.Row([
                 dbc.Col([
-                    html.P("Neighbourhood median", className="text-muted small mb-0"),
+                    html.P("Neighborhood median", className="text-muted small mb-0"),
                     html.H5([f"${nbhd_median:,.0f}", badge(pct_vs_nbhd)], className="mb-0"),
                     html.Small(neighbourhood, className="text-muted"),
                 ], width=6),
@@ -266,7 +281,7 @@ def _shap_drivers_card(drivers: list, predicted_price: float):
     for d in drivers:
         pct_width  = int(min(abs(d["dollar_impact"]) / max_abs * 100, 100))
         color      = "#198754" if d["direction"] == "up" else "#dc3545"
-        sign       = "+" if d["direction"] == "up" else ""
+        sign       = "+" if d["direction"] == "up" else "-"
         dollar_str = f"{sign}${abs(d['dollar_impact']):,.0f}"
 
         rows.append(
@@ -319,7 +334,7 @@ def _shap_drivers_card(drivers: list, predicted_price: float):
     ], className="mb-3")
 
 
-def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: float):
+def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: float, city: str = "sf"):
     """
     Amenity-aware investor tips.
     Each unchecked amenity with meaningful market lift gets a targeted tip,
@@ -351,13 +366,13 @@ def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: floa
     # Positioning tip (based on SHAP/market output, not hardcoded)
     if pct_vs_nbhd < -15:
         positioning_tip = (
-            "Your predicted price is below the neighbourhood average. "
+            "Your predicted price is below the neighborhood average. "
             "Adding premium amenities (gym, pool, hot tub) could close this gap significantly."
         )
     elif pct_vs_nbhd > 20:
         positioning_tip = (
-            "Your price is well above the neighbourhood average. "
-            "Prioritise earning strong early reviews to sustain occupancy at this price point."
+            "Your price is well above the neighborhood average. "
+            "Prioritize earning strong early reviews to sustain occupancy at this price point."
         )
     else:
         positioning_tip = (
@@ -379,8 +394,8 @@ def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: floa
             html.Span("Enable self check-in & instant book", className="fw-semibold"),
             html.Br(),
             html.Small(
-                "These two settings increase booking conversion and are associated with "
-                "a $33–$35 higher median price in SF.",
+                f"These two settings increase booking conversion and are associated with "
+                f"a higher median price in {city.upper()}.",
                 className="text-muted"
             ),
         ], className="border-0 px-0 py-2")
@@ -390,7 +405,7 @@ def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: floa
         dbc.CardHeader("INVESTOR TIPS"),
         dbc.CardBody([
             html.P(
-                "Based on your listing configuration and SF market data:",
+                f"Based on your listing configuration and {city.upper()} market data:",
                 className="text-muted small mb-2"
             ),
             dbc.ListGroup(tip_items, flush=True),

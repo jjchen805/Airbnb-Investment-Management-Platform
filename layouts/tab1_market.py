@@ -166,15 +166,16 @@ def build_detail_card(row: dict):
     reviews       = int(row.get("number_of_reviews", 0))
     amenities     = int(row.get("amenity_count", 0))
 
+    # AFTER
     themes = {
-        "Cleanliness":   row.get("theme_cleanliness_mean"),
-        "Communication": row.get("theme_communication_mean"),
-        "Check-in":      row.get("theme_checkin_mean"),
-        "Location":      row.get("theme_location_mean"),
-        "Amenities":     row.get("theme_amenities_mean"),
-        "Value":         row.get("theme_value_mean"),
-        "Comfort":       row.get("theme_comfort_mean"),
-        "Accuracy":      row.get("theme_accuracy_mean"),
+        "Cleanliness":   (row.get("theme_cleanliness_mean"),   row.get("theme_cleanliness_positive_mean"),   row.get("theme_cleanliness_negative_mean")),
+        "Communication": (row.get("theme_communication_mean"), row.get("theme_communication_positive_mean"), row.get("theme_communication_negative_mean")),
+        "Check-in":      (row.get("theme_checkin_mean"),       row.get("theme_checkin_positive_mean"),       row.get("theme_checkin_negative_mean")),
+        "Location":      (row.get("theme_location_mean"),      row.get("theme_location_positive_mean"),      row.get("theme_location_negative_mean")),
+        "Amenities":     (row.get("theme_amenities_mean"),     row.get("theme_amenities_positive_mean"),     row.get("theme_amenities_negative_mean")),
+        "Value":         (row.get("theme_value_mean"),         row.get("theme_value_positive_mean"),         row.get("theme_value_negative_mean")),
+        "Comfort":       (row.get("theme_comfort_mean"),       row.get("theme_comfort_positive_mean"),       row.get("theme_comfort_negative_mean")),
+        "Accuracy":      (row.get("theme_accuracy_mean"),      row.get("theme_accuracy_positive_mean"),      row.get("theme_accuracy_negative_mean")),
     }
 
     superhost_pill = html.Span(
@@ -213,7 +214,7 @@ def build_detail_card(row: dict):
                    style={"fontSize": "11px", "fontWeight": "600",
                           "color": "#AEAEB2", "textTransform": "uppercase",
                           "letterSpacing": "0.5px", "marginBottom": "10px"}),
-            *[_theme_bar(label, score) for label, score in themes.items()
+            *[_theme_bar(label, score, pos, neg) for label, (score, pos, neg) in themes.items()
               if score is not None and score == score],
 
             html.Div(
@@ -237,12 +238,15 @@ def _detail_row(icon, text):
     ], style={"display": "flex", "alignItems": "center", "marginBottom": "6px"})
 
 
-def _theme_bar(label: str, score: float):
+def _theme_bar(label: str, score: float, pos: float = 0, neg: float = 0):
     pct   = min(int(score * 100), 100)
-    color = "#34C759" if score > 0.5 else "#FF9F0A" if score > 0.2 else "#FF3B30"
+    pos = pos or 0
+    neg = neg or 0
+    net = pos - neg
+    color = "#34C759" if net > 0.20 else "#FF9F0A" if net > 0.05 else "#FF3B30"
     return html.Div([
         html.Div([
-            html.Span(label, style={"fontSize": "12px", "color": "#6E6E73", "width": "90px"}),
+            html.Span(label, style={"fontSize": "12px", "color": "#6E6E73", "width": "110px"}),
             html.Div(
                 html.Div(style={
                     "width": f"{pct}%", "height": "5px",

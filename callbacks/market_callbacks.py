@@ -16,7 +16,10 @@ import plotly.graph_objects as go
  
 from dash import Input, Output, State, no_update
 from layouts.tab1_market import build_detail_card
- 
+from dotenv import load_dotenv
+load_dotenv()   # reads .env file into environment
+
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN", "")
 # ── Load all city dataframes at startup ───────────────────────────────────────
 # Each city's dashboard_listings_{city}.csv is loaded once into memory.
 # The city selector in the navbar switches between them.
@@ -37,7 +40,7 @@ for city in CITIES:
 print(f"  Market Explorer: loaded {len(CITIES)} cities — {CITIES}")
  
 COLOR_SUPERHOST     = "#0071E3"   # Apple blue — premium, positive
-COLOR_NON_SUPERHOST = "#B0BEC5"   # soft cool slate — recessive
+COLOR_NON_SUPERHOST = "#E8C4A0"   # soft warm beige,
  
  
 def _get_df(city: str) -> pd.DataFrame:
@@ -114,7 +117,8 @@ def _build_map(dff: pd.DataFrame):
  
     fig.update_layout(
         mapbox=dict(
-            style="carto-positron",
+            style="mapbox://styles/mapbox/streets-v12",
+            accesstoken=MAPBOX_TOKEN,
             center=dict(lat=center_lat, lon=center_lon),
             zoom=11.5,
         ),

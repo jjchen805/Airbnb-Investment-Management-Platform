@@ -13,7 +13,7 @@ USER_TYPES = [
         "subtitle":    "I want to explore the Airbnb market",
         "description": (
             "Browse thousands of listings on an interactive map. "
-            "Filter by neighbourhood, room type, price, and Superhost status. "
+            "Filter by neighborhood, room type, price, and Superhost status. "
             "See KPI summaries and detailed listing breakdowns."
         ),
         "color":       "primary",
@@ -26,7 +26,7 @@ USER_TYPES = [
         "title":       "Superhost Advisor",
         "subtitle":    "I already have a listing",
         "description": (
-            "Select your existing listing and get a personalised Superhost "
+            "Select your existing listing and get a personalized Superhost "
             "probability score, SHAP-driven explanation, and ranked "
             "recommendations to improve your status."
         ),
@@ -40,7 +40,7 @@ USER_TYPES = [
         "title":       "Investor Predictor",
         "subtitle":    "I'm considering a new property",
         "description": (
-            "Enter your planned listing details — neighbourhood, property type, "
+            "Enter your planned listing details — neighborhood, property type, "
             "amenities, host setup — and get an ML-based nightly price estimate "
             "with market benchmarks and key price drivers."
         ),
@@ -67,17 +67,17 @@ def home_layout():
                             ),
                             # Title
                             html.H5(u["title"],
-                                    style={"fontSize": "18px", "fontWeight": "600",
+                                    style={"fontSize": "22px", "fontWeight": "600",
                                            "color": "#1D1D1F", "marginBottom": "4px"}),
                             # Subtitle
                             html.P(u["subtitle"],
-                                   style={"fontSize": "13px", "color": "#6E6E73",
+                                   style={"fontSize": "15px", "color": "#6E6E73",
                                           "marginBottom": "16px"}),
                             # Description
                             html.P(u["description"],
-                                   style={"fontSize": "14px", "color": "#3A3A3C",
-                                          "lineHeight": "1.6", "minHeight": "72px",
-                                          "marginBottom": "24px"}),
+                                   style={"fontSize": "16px", "color": "#3A3A3C",
+                                          "lineHeight": "1.6", "height": "150px",
+                                          "marginBottom": "24px", "overflow": "hidden"}),
                             # Button
                             dbc.Button(
                                 u["label"],
@@ -107,7 +107,7 @@ def home_layout():
         html.Div([
             html.Div([
                 html.P("AIRBNB INTELLIGENCE PLATFORM",
-                       style={"fontSize": "11px", "fontWeight": "600",
+                       style={"fontSize": "21px", "fontWeight": "600",
                               "letterSpacing": "2px", "color": "#6E6E73",
                               "marginBottom": "16px"}),
                 html.H1("Smarter decisions,\nbetter returns.",
@@ -118,7 +118,7 @@ def home_layout():
                                "whiteSpace": "pre-line"}),
                 html.P(
                     "An end-to-end intelligence system for the short-term rental market. "
-                    "Explore opportunities, optimise your listing, or predict returns on a new investment.",
+                    "Explore opportunities, optimize your listing, or predict returns on a new investment.",
                     style={"fontSize": "17px", "color": "#6E6E73",
                            "maxWidth": "520px", "margin": "0 auto 48px",
                            "lineHeight": "1.6"},
@@ -132,7 +132,7 @@ def home_layout():
         # ── Who are you section ───────────────────────────────────────────────
         html.Div([
             html.P("WHO ARE YOU?",
-                   style={"fontSize": "11px", "fontWeight": "600",
+                   style={"fontSize": "18px", "fontWeight": "600",
                           "letterSpacing": "2px", "color": "#AEAEB2",
                           "textAlign": "center", "marginBottom": "32px"}),
             dbc.Row(cards, className="g-4 justify-content-center"),

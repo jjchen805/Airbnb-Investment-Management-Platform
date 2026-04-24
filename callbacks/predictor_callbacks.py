@@ -233,6 +233,7 @@ def predict_price(form_values: dict, city: str) -> dict:
         "pct_vs_nbhd":     pct_vs_nbhd,
         "neighbourhood":   neighbourhood,
         "property_type":   form_values["property_type"],
+        "city":            city, 
     }
 
 

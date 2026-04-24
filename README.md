@@ -1,11 +1,18 @@
 # Airbnb Investment & Host Intelligence Platform
 
-A multi-city Airbnb market intelligence dashboard with three tabs:
-- **Market Explorer** — interactive map of listings with filters and KPI cards
-- **Superhost Advisor** — per-listing Superhost probability, SHAP explanations, and actionable recommendations
-- **Investor Predictor** — ML-based nightly price prediction for new listings with SHAP-driven insights
+A multi-city Airbnb market intelligence dashboard built with Dash, CatBoost, and SHAP. Designed as a reusable framework — any city available on [Inside Airbnb](https://insideairbnb.com) can be onboarded in four commands.
 
-Currently supports San Francisco, New York City, and Chicago. Designed to expand to additional cities without code changes.
+---
+
+## What it does
+
+The app has a landing page where users identify themselves as one of three types, then get directed to the relevant tab:
+
+- **🗺️ Market Explorer** — interactive Carto map of all listings with filters (neighbourhood, room type, property type, price range, Superhost status), KPI summary cards, and a listing detail panel with review theme bars color-coded by sentiment direction
+- **🌟 Superhost Advisor** — select any existing listing to see its Superhost probability (CatBoost classifier), a SHAP-driven explanation of what's pushing it toward or away from Superhost status, ranked actionable recommendations, and a strengths vs weaknesses breakdown
+- **📈 Investor Predictor** — input form for a planned listing that returns an ML-based nightly price estimate, market comparison vs neighbourhood and property type medians, SHAP price drivers, and amenity gap tips grounded in actual market lift data
+
+City switching is available in the navbar — all three tabs update instantly. Adding a new city requires no code changes.
 
 ---
 
@@ -16,8 +23,8 @@ airbnb_dashboard/
 │
 ├── app.py                          ← Entry point. Run this to start the dashboard.
 │
-├── create_clean_dataset.py         ← Step 1: Preprocessing. Runs NLP on reviews and
-│                                     engineers features from raw Inside Airbnb files.
+├── create_clean_dataset.py         ← Step 1: Preprocessing. Runs NLP on reviews
+│                                     and engineers features from raw Inside Airbnb files.
 │
 ├── train_investor_model.py         ← Step 2a: Trains CatBoost price regression model.
 ├── train_superhost_model.py        ← Step 2b: Trains CatBoost Superhost classifier.
@@ -27,10 +34,12 @@ airbnb_dashboard/
 │                                     and dashboard_meta_{city}.json.
 │
 ├── data/
+│   ├── listings_{city}.csv                ← Raw Inside Airbnb listings
+│   ├── reviews_{city}.csv                 ← Raw Inside Airbnb reviews
 │   ├── clean_airbnb_dataset_{city}.csv    ← Output of create_clean_dataset.py
+│   ├── review_aggregates_{city}.csv       ← NLP cache (auto-generated, speeds up reruns)
 │   ├── dashboard_listings_{city}.csv      ← Output of prepare_dashboard_data.py
-│   ├── dashboard_meta_{city}.json         ← Output of prepare_dashboard_data.py
-│   └── review_aggregates_{city}.csv       ← NLP cache (auto-generated, speeds up reruns)
+│   └── dashboard_meta_{city}.json         ← Output of prepare_dashboard_data.py
 │
 ├── models/
 │   ├── sf/
@@ -46,126 +55,174 @@ airbnb_dashboard/
 │       └── (same structure)
 │
 ├── layouts/
+│   ├── home.py                     ← Landing page with user type selector
 │   ├── tab1_market.py              ← Market Explorer UI
 │   ├── tab2_advisor.py             ← Superhost Advisor UI
 │   └── tab3_predictor.py           ← Investor Predictor UI
 │
-└── callbacks/
-    ├── market_callbacks.py         ← Tab 1 logic: filters, map, KPI cards, detail card
-    ├── advisor_callbacks.py        ← Tab 2 logic: SHAP, recommendations, strengths/weaknesses
-    └── predictor_callbacks.py      ← Tab 3 logic: price prediction, SHAP drivers, amenity tips
+├── callbacks/
+│   ├── market_callbacks.py         ← Tab 1: filters, map, KPI cards, detail card
+│   ├── advisor_callbacks.py        ← Tab 2: SHAP, recommendations, strengths/weaknesses
+│   └── predictor_callbacks.py      ← Tab 3: price prediction, SHAP drivers, amenity tips
+│
+└── assets/
+    └── style.css                   ← Global design system (Apple-inspired typography,
+                                      colors, spacing, card styles)
 ```
 
 ---
 
-## Setup — adding a new city
+## Adding a new city
 
-Every new city follows the same four steps.
+Every city follows the same four steps. Inside Airbnb provides `listings.csv` and `reviews.csv` for 100+ cities worldwide — all in the same schema.
 
 ### Prerequisites
 
 ```bash
-pip install dash dash-bootstrap-components plotly pandas joblib catboost scikit-learn textblob
+pip install dash dash-bootstrap-components plotly pandas joblib catboost \
+            scikit-learn textblob python-dotenv
 python -m textblob.download_corpora   # first time only
 ```
 
 ### Step 1 — Create clean dataset
 
-Takes raw Inside Airbnb `listings` and `reviews` CSVs and produces a single enriched CSV with engineered features and NLP review aggregates (sentiment, theme scores).
-
 ```bash
 python create_clean_dataset.py \
-  --city    nyc \
-  --listings data/listings_nyc.csv \
-  --reviews  data/reviews_nyc.csv
-# Output: data/clean_airbnb_dataset_nyc.csv
-# Cache:  data/review_aggregates_nyc.csv  (skip NLP on reruns)
+  --city    tokyo \
+  --listings data/listings_tokyo.csv \
+  --reviews  data/reviews_tokyo.csv
+# Output : data/clean_airbnb_dataset_tokyo.csv
+# Cache  : data/review_aggregates_tokyo.csv  (skips NLP on reruns)
 ```
 
-The NLP step (TextBlob sentiment + theme detection) is the slow part. For a city with 400k reviews expect 10–30 minutes. The cache file means reruns are instant.
+The NLP step (TextBlob sentiment + 9 review theme detectors) is the slow part — allow 10–30 minutes for large cities. The cache file means subsequent reruns are instant.
 
 ### Step 2 — Train models
 
-Each city gets its own set of model files saved under `models/{city}/`.
-
 ```bash
-# Price model (CatBoost regressor)
 python train_investor_model.py \
-  --city sf \
-  --data data/clean_airbnb_dataset_sf.csv
+  --city tokyo \
+  --data data/clean_airbnb_dataset_tokyo.csv
 
-# Superhost model (CatBoost classifier)
 python train_superhost_model.py \
-  --city sf \
-  --data data/clean_airbnb_dataset_sf.csv
+  --city tokyo \
+  --data data/clean_airbnb_dataset_tokyo.csv
+# Output: models/tokyo/ with 6 pkl files
 ```
 
-Each script saves three files: `price_model.pkl` / `superhost_model.pkl`, the feature list, and a metadata pkl containing R², fillna medians, group medians, and probability thresholds.
+Expected model performance based on SF / NYC / Chicago:
+- Price model R² ~0.65–0.75
+- Superhost classifier ROC-AUC ~0.86–0.89
 
 ### Step 3 — Prepare dashboard data
 
-Runs both models over all listings, computes market benchmarks, amenity price lifts, and neighbourhood stats. Produces the two files the dashboard reads at runtime.
-
 ```bash
-python prepare_dashboard_data.py --city sf
-# Output: data/dashboard_listings_sf.csv
-#         data/dashboard_meta_sf.json
+python prepare_dashboard_data.py --city tokyo
+# Output: data/dashboard_listings_tokyo.csv
+#         data/dashboard_meta_tokyo.json
 ```
 
-### Step 4 — Start the dashboard
+### Step 4 — Start the app
 
 ```bash
 python app.py
 # Open: http://localhost:8050
+# Tokyo now appears automatically in the city dropdown
 ```
 
-The app auto-discovers cities by scanning `data/` for `dashboard_listings_{city}.csv` files — no code change needed to add a new city.
+The app auto-discovers cities by scanning `data/` for `dashboard_listings_{city}.csv` files — no code changes needed.
+
+---
+
+## Running the app
+
+```bash
+# Activate your virtual environment
+source ~/venvs/airbnb_dash/bin/activate
+
+# From the project root
+python app.py
+# Open http://localhost:8050
+```
+
+If you see a `NotImplementedError: Cannot` on import, you are using the Anaconda environment instead of the venv. Always activate the venv first.
+
+---
+
+## Environment variables
+
+Create a `.env` file in the project root (already in `.gitignore`):
+
+```
+MAPBOX_TOKEN=pk.eyJ1...    # optional — for Mapbox basemap styles
+ANTHROPIC_API_KEY=sk-...   # optional — for AI chat feature (coming soon)
+```
 
 ---
 
 ## How each tab works
 
+### Landing page
+
+Opens on load with three user-type cards. Clicking a card navigates to the relevant tab and reveals the navbar (with city selector and a Home back button). Implemented using persistent hidden buttons and a clientside callback to work around Dash's requirement that all callback Inputs exist in the DOM at all times.
+
 ### Tab 1 — Market Explorer
 
-Filters (neighbourhood, room type, property type, price range, superhost status) update the Plotly OpenStreetMap scatter map in real time. Dot color indicates Superhost status (coral = Superhost, blue = non-Superhost); dot size scales with price. Clicking a dot loads a detail card on the right showing listing info, review scores, and a theme bar chart. The selected listing ID is stored in `dcc.Store` so switching to the Superhost Advisor tab auto-selects that listing.
+Filters update a Plotly `scatter_mapbox` map in real time using the `carto-positron` basemap — clean grayscale with no colored parks or highways so data dots stay readable. Dots are colored by Superhost status with opacity at 0.55. Dot size scales with price, capped at $800 to prevent outliers dominating. Clicking a dot loads a detail card with listing info and review theme bars. Theme bar colors reflect sentiment direction — green means guests praised that aspect, orange means mixed mentions, red means complaints — using `theme_{theme}_positive_mean` minus `theme_{theme}_negative_mean` from the NLP pipeline. The selected listing ID is stored in `dcc.Store` so switching to the Superhost Advisor tab auto-selects that listing.
 
 ### Tab 2 — Superhost Advisor
 
-Select a listing from the dropdown (or arrive from a map click on Tab 1). The page shows:
-- **Overview card** — price, response rate, sentiment, key amenities present/missing
-- **Superhost probability** — CatBoost classifier output with Low / Moderate / High label
-- **Recommendations** — up to 5 actionable items ranked by SHAP magnitude and impact tier
-- **Strengths vs weaknesses** — two-column breakdown of what's working and what isn't
-- **SHAP chart** — CatBoost native TreeSHAP showing which features pushed this listing toward or away from Superhost status, with green/red bars and +/− direction labels
+Select a listing from the dropdown or arrive via a map click on Tab 1. The page runs CatBoost's native TreeSHAP on the selected listing and returns:
+- Superhost probability with Low / Moderate / High potential label
+- Up to 5 recommendations ranked by impact tier then SHAP magnitude
+- Strengths vs weaknesses breakdown
+- SHAP waterfall chart showing which features push toward or away from Superhost status
 
-SHAP values are computed per-listing at click time using CatBoost's built-in `type="ShapValues"` — no external SHAP library needed.
+Recommendations are only surfaced when a feature is both weak or missing for that listing AND has a negative SHAP value — not generic advice.
 
 ### Tab 3 — Investor Predictor
 
-Input form for a planned listing (neighbourhood, property type, bedrooms, bathrooms, amenities, host setup). Clicking Predict runs the CatBoost price model and returns:
-- **Predicted nightly price** with ±12% estimated range
-- **Market comparison** — predicted price vs neighbourhood median and property type median
-- **Key price drivers** — SHAP-based waterfall bars showing each feature's dollar contribution
-- **Investor tips** — amenity gap analysis using observed market lift data from `dashboard_meta_{city}.json`
-
-The form derives coordinates from neighbourhood centroids, infers room type flags from property type, and fills `availability_60` and `maximum_nights` with training-set medians — inputs a future investor can't know.
+Form inputs are mapped to the exact feature pipeline used during training: group median encoding from `price_meta.pkl`, neighbourhood centroid coordinates, and room type flags derived from property type selection. Fields a future investor cannot know (`availability_60`, `maximum_nights`) are filled with training-set medians. Output panel shows:
+- Predicted nightly price with estimated range
+- Market comparison vs neighbourhood and property type medians
+- SHAP price drivers with dollar-impact values
+- Investor tips: amenity gaps grounded in observed market lift data per neighbourhood, market positioning based on predicted vs neighbourhood average, and booking conversion tips — all labelled with the selected city
 
 ---
 
 ## Multi-city design
 
-All three callbacks load every city's data and models at startup into in-memory dicts (`ALL_DF`, `ALL_PRICE_MODELS`, `ALL_SH_MODELS`). A `dcc.Store(id="selected-city")` holds the active city and is updated by the city dropdown in the navbar. Each callback reads `State("selected-city", "data")` to pick the right dataframe and model without reloading from disk.
-
-Adding a new city requires no code changes — just run the four steps above and restart the app.
+All three callbacks preload every city's data and models into memory at startup (`ALL_DF`, `ALL_PRICE_MODELS`, `ALL_SH_MODELS`). A `dcc.Store(id="selected-city")` holds the active city and is updated by the navbar dropdown. Each callback reads `State("selected-city", "data")` to pick the right dataframe and model without reloading from disk. Adding a new city only requires running the four pipeline steps — the app discovers it automatically on next restart.
 
 ---
 
 ## Key technical decisions
 
-**CatBoost native SHAP** — both models use `model.get_feature_importance(data=Pool(X), type="ShapValues")` for local explanations. This is CatBoost's built-in TreeSHAP implementation, so no external `shap` library is required.
+**CatBoost native SHAP** — both models use `model.get_feature_importance(data=Pool(X), type="ShapValues")`. No external `shap` library required.
 
-**No price filter on dashboard listings** — `prepare_dashboard_data.py` includes all listings regardless of whether `price_clean` is null. The price cap (99th percentile) is only used for computing benchmark stats, not for filtering rows. This ensures every listing in the dataset appears in the Advisor dropdown.
+**No price filter on dashboard listings** — `prepare_dashboard_data.py` includes all listings regardless of whether `price_clean` is null. The 99th percentile cap is only used for computing benchmark stats, not filtering rows. This ensures every listing appears in the Advisor dropdown.
+
+**Review theme sentiment coloring** — theme bar colors use net sentiment direction (positive minus negative mention rate) rather than raw mention frequency. This makes red mean guests complained rather than guests rarely mentioned it.
 
 **Group median encoding at prediction time** — the price model was trained with leak-free neighbourhood and property type median encoding. The same `group_medians` dict from `price_meta.pkl` is applied at prediction time to avoid train/serve skew.
 
-**Review NLP caching** — `create_clean_dataset.py` saves `review_aggregates_{city}.csv` after the first run. Subsequent runs load from cache, skipping the slow TextBlob step entirely.
+**NLP caching** — `create_clean_dataset.py` saves `review_aggregates_{city}.csv` after the first run. Subsequent runs skip the slow TextBlob step entirely.
+
+**Persistent hidden buttons** — the home page navigation uses persistent hidden `dbc.Button` elements and a clientside callback that mirrors visible card button clicks to them. This works around Dash's requirement that all callback Inputs exist in the DOM at all times, even when `page-content` is replaced with a tab layout.
+
+---
+
+## Git
+
+Data and model files are excluded from version control:
+
+```gitignore
+data/
+models/
+.env
+__pycache__/
+*.pyc
+.DS_Store
+```
+
+All excluded files are regenerated locally by running the four pipeline steps above.

@@ -9,4 +9,5 @@ __pycache__/
 *.pyc
 .DS_Store
 #Token
-.env
+.env__pycache__/
+*.pyc

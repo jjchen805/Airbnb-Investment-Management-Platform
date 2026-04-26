@@ -126,6 +126,7 @@ def build_advisor_panel(row, shap_drivers, recommendations, strengths, weaknesse
         dbc.Col([
             _recommendations_card(recommendations),
             _shap_chart_card(shap_drivers, row),
+            _advisor_agent_panel(),
         ], md=8),
     ], className="g-3")
 
@@ -411,3 +412,83 @@ def _info_row(icon, text, accent):
                       "width": "18px", "marginRight": "8px", "flexShrink": "0"}),
         html.Span(str(text), style={"fontSize": "13px", "color": C["gray2"]}),
     ], style={"display": "flex", "alignItems": "center", "marginBottom": "7px"})
+
+def _advisor_agent_panel():
+    """AI Q&A + action plan panel for the Superhost Advisor."""
+    from dash import html, dcc
+    import dash_bootstrap_components as dbc
+ 
+    C = {
+        "blue":  "#0071E3",
+        "gray1": "#1D1D1F",
+        "gray3": "#6E6E73",
+        "gray4": "#AEAEB2",
+        "gray6": "#F2F2F7",
+    }
+ 
+    return dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    html.P("AI ADVISOR", style={
+                        "fontSize": "11px", "fontWeight": "600",
+                        "color": C["gray4"], "letterSpacing": "0.8px",
+                        "marginBottom": "4px",
+                    }),
+                    html.P(
+                        "Ask a question about this listing or generate a 7/30-day action plan.",
+                        style={"fontSize": "13px", "color": C["gray3"], "marginBottom": "16px"},
+                    ),
+ 
+                    # Status text
+                    html.P(id="adv-agent-status",
+                           style={"fontSize": "12px", "color": C["gray4"],
+                                  "marginBottom": "12px"}),
+ 
+                    # Question input
+                    dbc.Textarea(
+                        id="adv-agent-question",
+                        placeholder="e.g. How can I improve my check-in score?",
+                        disabled=True,
+                        style={
+                            "fontSize": "13px", "borderRadius": "10px",
+                            "border": "1px solid #D1D1D6",
+                            "padding": "10px 12px", "resize": "none",
+                            "height": "72px", "marginBottom": "10px",
+                            "width": "100%",
+                        },
+                    ),
+ 
+                    # Buttons
+                    dbc.Row([
+                        dbc.Col(
+                            dbc.Button("Ask", id="adv-agent-ask-btn",
+                                       disabled=True, n_clicks=0,
+                                       style={"background": C["blue"], "border": "none",
+                                              "borderRadius": "10px", "fontSize": "13px",
+                                              "fontWeight": "500", "width": "100%"}),
+                            width=4
+                        ),
+                        dbc.Col(
+                            dbc.Button("Generate action plan",
+                                       id="adv-agent-generate-btn",
+                                       disabled=True, n_clicks=0,
+                                       style={"background": "#FFFFFF", "border": "1px solid #D1D1D6",
+                                              "borderRadius": "10px", "fontSize": "13px",
+                                              "fontWeight": "500",
+                                              "width": "100%"}),
+                            width=8
+                        ),
+                    ], className="mb-3 g-2"),
+ 
+                    # Response area
+                    dcc.Loading(
+                        dcc.Markdown(id="adv-agent-content",
+                            style={"fontSize": "13px", "color": C["gray1"],
+                                    "lineHeight": "1.6"},
+                            className="markdown-body"),
+                    ),
+                ]),
+            ]),
+        ], md=12),
+    ], className="g-3 mt-1")

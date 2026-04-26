@@ -1,0 +1,12 @@
+dash
+dash-bootstrap-components
+plotly
+pandas
+numpy
+joblib
+catboost
+scikit-learn
+textblob
+python-dotenv
+anthropic
+requests

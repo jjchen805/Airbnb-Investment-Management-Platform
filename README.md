@@ -79,8 +79,7 @@ Every city follows the same four steps. Inside Airbnb provides `listings.csv` an
 ### Prerequisites
 
 ```bash
-pip install dash dash-bootstrap-components plotly pandas joblib catboost \
-            scikit-learn textblob python-dotenv
+pip install -r requirements.txt
 python -m textblob.download_corpora   # first time only
 ```
 
@@ -154,7 +153,7 @@ If you see a `NotImplementedError: Cannot` on import, you are using the Anaconda
 Create a `.env` file in the project root (already in `.gitignore`):
 
 ```
-MAPBOX_TOKEN=pk.eyJ1...    # optional — for Mapbox basemap styles
+MAPBOX_TOKEN=pk.eyJ1...    # required — Mapbox streets-v12 basemap
 ANTHROPIC_API_KEY=sk-...   # optional — for AI chat feature (coming soon)
 ```
 
@@ -168,7 +167,7 @@ Opens on load with three user-type cards. Clicking a card navigates to the relev
 
 ### Tab 1 — Market Explorer
 
-Filters update a Plotly `scatter_mapbox` map in real time using the `carto-positron` basemap — clean grayscale with no colored parks or highways so data dots stay readable. Dots are colored by Superhost status with opacity at 0.55. Dot size scales with price, capped at $800 to prevent outliers dominating. Clicking a dot loads a detail card with listing info and review theme bars. Theme bar colors reflect sentiment direction — green means guests praised that aspect, orange means mixed mentions, red means complaints — using `theme_{theme}_positive_mean` minus `theme_{theme}_negative_mean` from the NLP pipeline. The selected listing ID is stored in `dcc.Store` so switching to the Superhost Advisor tab auto-selects that listing.
+Filters update a Plotly `scatter_mapbox` map in real time using the Mapbox `streets-v12` style — a clean, detailed street map that keeps geography readable without overwhelming the data layer. Dots are colored by Superhost status with opacity at 0.55. Dot size scales with price, capped at $800 to prevent outliers dominating. Clicking a dot loads a detail card with listing info and review theme bars. Theme bar colors reflect sentiment direction — green means guests praised that aspect, orange means mixed mentions, red means complaints — using `theme_{theme}_positive_mean` minus `theme_{theme}_negative_mean` from the NLP pipeline. The selected listing ID is stored in `dcc.Store` so switching to the Superhost Advisor tab auto-selects that listing.
 
 ### Tab 2 — Superhost Advisor
 

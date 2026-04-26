@@ -20,6 +20,7 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output, State, ctx, no_update
 import pandas as pd
+import os
 
 from layouts.home           import home_layout
 from layouts.tab1_market    import market_layout
@@ -33,14 +34,27 @@ from callbacks.predictor_callbacks import register_predictor_callbacks
 from callbacks.chat_callbacks import register_chat_callbacks
 
 # ── Load shared data ───────────────────────────────────────────────────────────
-CITIES = ["sf", "nyc", "chicago"]
-META   = {city: json.load(open(f"data/dashboard_meta_{city}.json")) for city in CITIES}
+# ── Auto-discover cities from data/ folder ─────────────────────────────────────
+CITIES = sorted([
+    f.replace("dashboard_meta_", "").replace(".json", "")
+    for f in os.listdir("data")
+    if f.startswith("dashboard_meta_") and f.endswith(".json")
+])
 
-CITY_LABELS = {
-    "sf":      "San Francisco",
-    "nyc":     "New York City",
-    "chicago": "Chicago",
-}
+META = {city: json.load(open(f"data/dashboard_meta_{city}.json")) for city in CITIES}
+
+# Derive human-readable labels from city code
+# e.g. "sf" → "SF", "nyc" → "NYC", "chicago" → "Chicago"
+def _city_label(code: str) -> str:
+    overrides = {
+        "sf":  "San Francisco",
+        "nyc": "New York City",
+        "la":  "Los Angeles",
+        "dc":  "Washington D.C.",
+    }
+    return overrides.get(code, code.replace("_", " ").title())
+
+CITY_LABELS = {city: _city_label(city) for city in CITIES}
 
 # ── App init ──────────────────────────────────────────────────────────────────
 app = dash.Dash(

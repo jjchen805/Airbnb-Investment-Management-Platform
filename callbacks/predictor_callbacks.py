@@ -1,8 +1,8 @@
 """
 Tab 3 Callbacks — Investor Price Predictor
 ==========================================
-Uses CatBoost's native TreeSHAP to produce local, per-row explanations.
-Swaps price model and meta when the city selector changes.
+Uses CatBoost native TreeSHAP for local explanations.
+Includes what-if scenario engine and AI investment brief/Q&A.
 """
 import json
 import joblib
@@ -11,8 +11,14 @@ import numpy as np
 import pandas as pd
 from catboost import Pool
 
-from dash import Input, Output, State
+from dash import Input, Output, State, no_update, ctx
 from layouts.tab3_predictor import build_output_panel
+from services.llm_agent import (
+    build_predictor_whatif_plan,
+    build_investor_agent_answer,
+    build_investor_agent_brief,
+    agent_enabled,
+)
 
 # ── Load all city price models at startup ─────────────────────────────────────
 CITIES = [
@@ -83,6 +89,31 @@ FEATURE_HUMAN_LABELS = {
     **{col: AMENITY_LABELS[col] for col in AMENITY_COLS},
 }
 
+# Estimated one-time costs ($) for adding each amenity (for what-if ROI ranking)
+AMENITY_COSTS = {
+    "has_wifi":            35,
+    "has_kitchen":         1200,
+    "has_washer":          700,
+    "has_dryer":           650,
+    "has_parking":         200,
+    "has_air_conditioning":1800,
+    "has_heating":         600,
+    "has_tv":              350,
+    "has_self_check-in":   120,
+    "has_coffee":          80,
+    "has_hair_dryer":      40,
+    "has_iron":            35,
+    "has_gym":             3000,
+    "has_pool":            8000,
+    "has_hot_tub":         4500,
+    "has_elevator":        6000,
+}
+
+HOST_SETUP_COSTS = {
+    "instant_bookable_num": 0,
+    "host_is_superhost":    350,
+}
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -102,9 +133,8 @@ def _infer_room_flags(property_type: str):
     return 1, 0, 0
 
 
-def _build_feature_row(form_values: dict, price_features: list,
-                       group_medians: dict, fillna_medians: dict,
-                       nbhd_coords: dict) -> pd.DataFrame:
+def _build_feature_row(form_values, price_features, group_medians,
+                       fillna_medians, nbhd_coords):
     neighbourhood = form_values["neighbourhood"]
     property_type = form_values["property_type"]
     lat, lon      = nbhd_coords.get(neighbourhood, (40.7128, -74.0060))
@@ -148,8 +178,7 @@ def _build_feature_row(form_values: dict, price_features: list,
     return X_df
 
 
-def _compute_shap(X_df: pd.DataFrame, price_model, price_features: list,
-                  predicted_price: float) -> list:
+def _compute_shap(X_df, price_model, price_features, predicted_price):
     pool        = Pool(X_df)
     shap_matrix = price_model.get_feature_importance(data=pool, type="ShapValues")
     shap_vals   = dict(zip(price_features, shap_matrix[0, :-1]))
@@ -158,7 +187,6 @@ def _compute_shap(X_df: pd.DataFrame, price_model, price_features: list,
     shap_vals["Location"] = loc_shap
 
     sorted_shap = sorted(shap_vals.items(), key=lambda x: abs(x[1]), reverse=True)
-
     drivers, seen = [], set()
     for feat, shap_val in sorted_shap:
         label = FEATURE_HUMAN_LABELS.get(feat, feat.replace("_", " ").title())
@@ -177,14 +205,12 @@ def _compute_shap(X_df: pd.DataFrame, price_model, price_features: list,
     return drivers
 
 
-def _get_amenity_lift(amenity_col: str, neighbourhood: str, meta: dict) -> float:
-    amenity_lifts     = meta.get("amenity_lifts", {})
-    amenity_lifts_by_nbhd = meta.get("amenity_lifts_by_nbhd", {})
-    nbhd_data = amenity_lifts_by_nbhd.get(neighbourhood, {})
+def _get_amenity_lift(amenity_col, neighbourhood, meta):
+    nbhd_data = meta.get("amenity_lifts_by_nbhd", {}).get(neighbourhood, {})
     val = nbhd_data.get(amenity_col)
     if val is not None:
         return float(val)
-    return float(amenity_lifts.get(amenity_col, 0))
+    return float(meta.get("amenity_lifts", {}).get(amenity_col, 0))
 
 
 def predict_price(form_values: dict, city: str) -> dict:
@@ -195,34 +221,27 @@ def predict_price(form_values: dict, city: str) -> dict:
     nbhd_coords    = {r["neighbourhood_top"]: (r["latitude"], r["longitude"])
                       for r in meta["neighbourhoods"]}
 
-    X_df = _build_feature_row(form_values, price_features, group_medians,
-                               fillna_medians, nbhd_coords)
-
+    X_df            = _build_feature_row(form_values, price_features,
+                                         group_medians, fillna_medians, nbhd_coords)
     y_log_pred      = price_model.predict(X_df)[0]
     predicted_price = float(np.expm1(y_log_pred))
-
-    drivers = _compute_shap(X_df, price_model, price_features, predicted_price)
+    drivers         = _compute_shap(X_df, price_model, price_features, predicted_price)
 
     neighbourhood = form_values["neighbourhood"]
     unchecked     = [col for col in AMENITY_COLS if not form_values.get(col, 0)]
-
-    amenity_gaps = []
-    for col in unchecked:
-        market_lift = _get_amenity_lift(col, neighbourhood, meta)
-        if market_lift > 10:
-            amenity_gaps.append({
-                "col":         col,
-                "label":       AMENITY_LABELS[col],
-                "market_lift": market_lift,
-            })
-    amenity_gaps = sorted(amenity_gaps, key=lambda x: x["market_lift"], reverse=True)[:4]
+    amenity_gaps  = sorted(
+        [{"col": col, "label": AMENITY_LABELS[col],
+          "market_lift": _get_amenity_lift(col, neighbourhood, meta)}
+         for col in unchecked
+         if _get_amenity_lift(col, neighbourhood, meta) > 10],
+        key=lambda x: x["market_lift"], reverse=True
+    )[:4]
 
     nbhd_medians = {r["neighbourhood_top"]: r["median_price"] for r in meta["neighbourhoods"]}
     prop_medians = {r["property_type_simple"]: r["median_price"] for r in meta["property_types"]}
-
-    nbhd_median = nbhd_medians.get(neighbourhood, meta["overall_median_price"])
-    prop_median = prop_medians.get(form_values["property_type"], meta["overall_median_price"])
-    pct_vs_nbhd = ((predicted_price - nbhd_median) / nbhd_median) * 100
+    nbhd_median  = nbhd_medians.get(neighbourhood, meta["overall_median_price"])
+    prop_median  = prop_medians.get(form_values["property_type"], meta["overall_median_price"])
+    pct_vs_nbhd  = ((predicted_price - nbhd_median) / nbhd_median) * 100
 
     return {
         "predicted_price": predicted_price,
@@ -233,7 +252,119 @@ def predict_price(form_values: dict, city: str) -> dict:
         "pct_vs_nbhd":     pct_vs_nbhd,
         "neighbourhood":   neighbourhood,
         "property_type":   form_values["property_type"],
-        "city":            city, 
+        "city":            city,
+    }
+
+
+# ── What-if scenario engine ───────────────────────────────────────────────────
+
+def _booking_win_rate_proxy(predicted_price: float, nbhd_median: float) -> float:
+    if nbhd_median <= 0:
+        return 50.0
+    ratio = predicted_price / nbhd_median
+    score = 100.0 - abs(ratio - 1.0) * 120.0
+    return float(max(0.0, min(100.0, score)))
+
+
+def _build_candidate_mods(form_values, city, budget, meta):
+    neighbourhood    = form_values["neighbourhood"]
+    missing_amenities = [col for col in AMENITY_COLS if not form_values.get(col, 0)]
+
+    amenity_rank = sorted(
+        [(col, _get_amenity_lift(col, neighbourhood, meta),
+          float(AMENITY_COSTS.get(col, 300)))
+         for col in missing_amenities
+         if _get_amenity_lift(col, neighbourhood, meta) > 0],
+        key=lambda x: x[1] / max(x[2], 1.0), reverse=True
+    )
+
+    candidates, seen = [], set()
+
+    def add(name, updates, cost, changes):
+        if cost > budget:
+            return
+        key = (name, tuple(sorted(updates.items())))
+        if key in seen:
+            return
+        seen.add(key)
+        candidates.append({"name": name, "updates": updates,
+                           "estimated_budget": float(cost), "changes": changes})
+
+    # Single amenity upgrades
+    for col, _, cost in amenity_rank[:8]:
+        add(f"Add {AMENITY_LABELS[col]}", {col: 1}, cost,
+            [f"Enable {AMENITY_LABELS[col]}"])
+
+    # Amenity bundles (top ROI pairs)
+    top = amenity_rank[:6]
+    for i in range(len(top)):
+        for j in range(i + 1, len(top)):
+            c1, _, cost1 = top[i]
+            c2, _, cost2 = top[j]
+            add(f"Bundle: {AMENITY_LABELS[c1]} + {AMENITY_LABELS[c2]}",
+                {c1: 1, c2: 1}, cost1 + cost2,
+                [f"Add {AMENITY_LABELS[c1]}", f"Add {AMENITY_LABELS[c2]}"])
+
+    # Minimum nights what-if
+    current_min = int(form_values.get("minimum_nights", 2))
+    for mn in [1, 2, 3, 5, 7]:
+        if mn != current_min:
+            add(f"Min nights = {mn}", {"minimum_nights": mn}, 0,
+                [f"Set minimum nights to {mn}"])
+
+    # Host setup
+    if not form_values.get("instant_bookable_num", 0):
+        add("Enable instant book", {"instant_bookable_num": 1},
+            HOST_SETUP_COSTS["instant_bookable_num"], ["Enable instant book"])
+    if not form_values.get("host_is_superhost", 0):
+        add("Superhost readiness", {"host_is_superhost": 1.0},
+            HOST_SETUP_COSTS["host_is_superhost"], ["Target Superhost standards"])
+
+    return candidates
+
+
+def _apply_mods_to_form(form_values, updates):
+    modified = dict(form_values)
+    added = [k for k, v in updates.items()
+             if k in AMENITY_COLS and int(v) == 1 and not modified.get(k, 0)]
+    modified.update(updates)
+    if added:
+        modified["amenity_count"] = int(modified.get("amenity_count", 0)) + len(added)
+    return modified
+
+
+def generate_whatif_plan(form_values, city, budget, base_result):
+    city = city or CITIES[0]
+    price_model, price_features, price_meta_city, meta = _get_city_assets(city)
+
+    candidates  = _build_candidate_mods(form_values, city, budget, meta)
+    base_price  = float(base_result["predicted_price"])
+    base_win    = _booking_win_rate_proxy(base_price, float(base_result["nbhd_median"]))
+
+    ranked = []
+    for c in candidates:
+        modified = _apply_mods_to_form(form_values, c["updates"])
+        sim      = predict_price(modified, city)
+        pred     = float(sim["predicted_price"])
+        uplift   = pred - base_price
+        win_new  = _booking_win_rate_proxy(pred, float(sim["nbhd_median"]))
+        ranked.append({
+            "name":             c["name"],
+            "estimated_budget": round(c["estimated_budget"], 2),
+            "predicted_price":  pred,
+            "uplift_usd":       uplift,
+            "uplift_pct":       (uplift / base_price * 100.0) if base_price > 0 else 0.0,
+            "win_rate_delta":   win_new - base_win,
+            "changes":          c["changes"],
+            "objective":        uplift + (win_new - base_win) * 0.8,
+        })
+
+    ranked.sort(key=lambda x: x["objective"], reverse=True)
+    return {
+        "city":       city,
+        "budget":     float(budget),
+        "base_price": base_price,
+        "scenarios":  ranked[:3],
     }
 
 
@@ -241,9 +372,12 @@ def predict_price(form_values: dict, city: str) -> dict:
 
 def register_predictor_callbacks(app):
 
+    # ── Main prediction ────────────────────────────────────────────────────
     @app.callback(
-        Output("inv-output-panel",    "children"),
-        Input("inv-predict-btn",      "n_clicks"),
+        Output("inv-output-panel",   "children"),
+        Output("inv-whatif-context", "data"),
+        Output("inv-agent-context",  "data"),
+        Input("inv-predict-btn",     "n_clicks"),
         State("selected-city",        "data"),
         State("inv-neighbourhood",    "value"),
         State("inv-property-type",    "value"),
@@ -287,7 +421,7 @@ def register_predictor_callbacks(app):
     ):
         if not n_clicks:
             from layouts.tab3_predictor import _empty_output_panel
-            return _empty_output_panel()
+            return _empty_output_panel(), None, None
 
         def flag(val):
             return 1 if val else 0
@@ -324,5 +458,88 @@ def register_predictor_callbacks(app):
             "has_elevator":         flag(w_elevator),
         }
 
-        result = predict_price(form_values, city or CITIES[0])
-        return build_output_panel(result)
+        city   = city or CITIES[0]
+        result = predict_price(form_values, city)
+        agent_context = {
+            "city":        city,
+            "form_values": form_values,
+            "result":      result,
+            "budget":      1500.0,
+        }
+        return build_output_panel(result, {}), None, agent_context
+
+    # ── AI: brief, Q&A, or what-if plan ───────────────────────────────────
+    @app.callback(
+        Output("inv-agent-response",  "children"),
+        Output("inv-output-panel",    "children", allow_duplicate=True),
+        Output("inv-whatif-context",  "data",     allow_duplicate=True),
+        Input("inv-agent-ask-btn",    "n_clicks"),
+        Input("inv-agent-brief-btn",  "n_clicks"),
+        Input("inv-whatif-generate-btn","n_clicks"),
+        State("inv-agent-question",   "value"),
+        State("inv-whatif-budget",    "value"),
+        State("inv-whatif-context",   "data"),
+        State("inv-agent-context",    "data"),
+        prevent_initial_call=True,
+    )
+    def generate_investor_agent_output(
+        ask_clicks, brief_clicks, whatif_clicks,
+        question, budget_input, whatif_context, agent_context
+    ):
+        trigger = ctx.triggered_id
+        if not agent_context:
+            return "Run a prediction first.", no_update, no_update
+
+        if brief_clicks == 0 and ask_clicks == 0 and whatif_clicks == 0:
+            return no_update, no_update, no_update
+    
+        city        = agent_context.get("city", CITIES[0])
+        form_values = agent_context.get("form_values", {})
+        result      = agent_context.get("result", {})
+
+        unavailable = (
+            "AI agent unavailable. Add to .env:\n\n"
+            "```\nENABLE_AGENT=true\n"
+            "AGENT_PROVIDER=anthropic\n"
+            "ANTHROPIC_API_KEY=sk-ant-...\n```"
+        )
+
+        if trigger == "inv-agent-ask-btn":
+            q = (question or "").strip()
+            if not q:
+                return "Please enter a question.", no_update, no_update
+            text = build_investor_agent_answer(
+                city=city,
+                question=q,
+                investment_context={
+                    "result":         result,
+                    "whatif_top3":    (whatif_context or {}).get("scenarios", []),
+                    "budget":         float(budget_input) if budget_input else 1500.0,
+                },
+            )
+            return (text or unavailable), no_update, no_update
+
+        if trigger == "inv-agent-brief-btn":
+            text = build_investor_agent_brief(
+                city=city, form_values=form_values, result=result
+            )
+            return (text or unavailable), no_update, no_update
+        
+        if trigger == "inv-whatif-generate-btn":
+            budget = float(budget_input) if budget_input and float(budget_input) > 0 else 1500.0
+            whatif = generate_whatif_plan(form_values, city, budget, result)
+            text   = build_predictor_whatif_plan(
+                city=whatif.get("city", city),
+                budget=budget,
+                base_price=float(whatif.get("base_price", 0.0)),
+                scenarios=whatif.get("scenarios", []),
+            )
+
+            if text:
+                whatif["llm_narrative"] = text
+                
+            return (text or unavailable), build_output_panel(result, whatif), whatif
+        
+            
+        
+        return no_update, no_update, no_update  # safety fallback

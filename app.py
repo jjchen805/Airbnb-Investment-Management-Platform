@@ -25,10 +25,12 @@ from layouts.home           import home_layout
 from layouts.tab1_market    import market_layout
 from layouts.tab2_advisor   import advisor_layout
 from layouts.tab3_predictor import predictor_layout
+from layouts.chat import chat_components
 
 from callbacks.market_callbacks    import register_market_callbacks, ALL_DF
 from callbacks.advisor_callbacks   import register_advisor_callbacks
 from callbacks.predictor_callbacks import register_predictor_callbacks
+from callbacks.chat_callbacks import register_chat_callbacks
 
 # ── Load shared data ───────────────────────────────────────────────────────────
 CITIES = ["sf", "nyc", "chicago"]
@@ -106,6 +108,9 @@ app.layout = html.Div([
     # Shared state
     dcc.Store(id="selected-city",      data="sf"),
     dcc.Store(id="selected-listing-id"),
+    dcc.Store(id="adv-agent-context",  data={}),
+    dcc.Store(id="inv-agent-context",  data=None),
+    dcc.Store(id="inv-whatif-context", data=None),
 
     html.Div([
         dbc.Button(id="btn-persistent-market",    n_clicks=0),
@@ -115,6 +120,8 @@ app.layout = html.Div([
 
     # Page content
     html.Div(id="page-content", children=home_layout()),
+
+    chat_components(),
 ])
 
 app.clientside_callback(
@@ -204,6 +211,7 @@ def render_tab(tab, city):
 register_market_callbacks(app)
 register_advisor_callbacks(app)
 register_predictor_callbacks(app)
+register_chat_callbacks(app)
 
 
 if __name__ == "__main__":

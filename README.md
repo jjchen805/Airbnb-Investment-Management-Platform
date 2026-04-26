@@ -18,7 +18,7 @@ City switching is available in the navbar — all three tabs update instantly. A
 ## Project structure
  
 ```
-airbnb_dashboard/
+AIRBNB-INVESTMENT-MANAGEMENT-PLATFORM/
 │
 ├── app.py                          ← Entry point. Run this to start the dashboard.
 │

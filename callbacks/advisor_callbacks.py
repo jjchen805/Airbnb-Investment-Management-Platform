@@ -7,6 +7,7 @@ Handles:
   - dcc.Store sync: map click on Tab 1 auto-selects listing here
   - SHAP explanation via CatBoost native TreeSHAP
   - Recommendation engine: actionable, ranked by SHAP magnitude
+  - AI agent: action plan + Q&A grounded in listing context
 """
 import json
 import joblib
@@ -15,9 +16,14 @@ import numpy as np
 import pandas as pd
 from catboost import Pool
 
-from dash import Input, Output, State, no_update
+from dash import Input, Output, State, no_update, ctx
 from layouts.tab2_advisor import (
     build_advisor_panel, _empty_panel, AMENITY_LABELS
+)
+from services.llm_agent import (
+    build_advisor_agent_plan,
+    build_advisor_agent_answer,
+    agent_enabled,
 )
 
 # ── Load all city data + models at startup ────────────────────────────────────
@@ -50,11 +56,10 @@ print(f"  Advisor: loaded {len(CITIES)} cities — {CITIES}")
 
 
 def _get_city_assets(city: str):
-    """Return (df, model, features, fillna_medians, meta) for a city."""
-    city    = city if city in CITIES else CITIES[0]
-    df      = ALL_DF[city]
-    sh      = ALL_SH_MODELS[city]
-    meta    = ALL_META[city]
+    city  = city if city in CITIES else CITIES[0]
+    df    = ALL_DF[city]
+    sh    = ALL_SH_MODELS[city]
+    meta  = ALL_META[city]
     return df, sh["model"], sh["features"], sh["meta"]["fillna_medians"], meta
 
 
@@ -181,16 +186,14 @@ RECOMMENDATION_TEMPLATES = {
 
 # ── Core logic ────────────────────────────────────────────────────────────────
 
-def _compute_shap(row: dict, model, features: list, fillna_medians: dict) -> tuple:
+def _compute_shap(row, model, features, fillna_medians):
     X = pd.DataFrame([{f: row.get(f, fillna_medians.get(f, 0)) for f in features}])
     X = X.fillna(fillna_medians)
     shap_matrix = model.get_feature_importance(data=Pool(X), type="ShapValues")
-    shap_vals   = dict(zip(features, shap_matrix[0, :-1]))
-    base_value  = float(shap_matrix[0, -1])
-    return shap_vals, base_value
+    return dict(zip(features, shap_matrix[0, :-1])), float(shap_matrix[0, -1])
 
 
-def _build_shap_drivers(shap_vals: dict, top_n: int = 10) -> list:
+def _build_shap_drivers(shap_vals, top_n=10):
     sorted_feats = sorted(shap_vals.items(), key=lambda x: abs(x[1]), reverse=True)
     drivers, seen = [], set()
     for feat, val in sorted_feats:
@@ -208,17 +211,14 @@ def _build_shap_drivers(shap_vals: dict, top_n: int = 10) -> list:
     return drivers
 
 
-def _build_recommendations(row: dict, shap_vals: dict, fillna_medians: dict) -> list:
+def _build_recommendations(row, shap_vals, fillna_medians):
     candidates = []
-
     for feat, template in RECOMMENDATION_TEMPLATES.items():
         if feat not in shap_vals:
             continue
-
         val      = row.get(feat, fillna_medians.get(feat, 0))
         shap_val = shap_vals.get(feat, 0)
-
-        is_weak = False
+        is_weak  = False
         if feat == "host_response_rate_clean":
             is_weak = (val is None or val != val or float(val) < 90)
         elif feat == "host_acceptance_rate_clean":
@@ -251,9 +251,8 @@ def _build_recommendations(row: dict, shap_vals: dict, fillna_medians: dict) -> 
             for c in candidates[:5]]
 
 
-def _build_strengths_weaknesses(row: dict, shap_vals: dict) -> tuple:
+def _build_strengths_weaknesses(row, shap_vals):
     strengths, weaknesses = [], []
-
     checks = {
         "host_has_profile_pic_num":   ("Profile picture set",       "No profile picture"),
         "host_identity_verified_num": ("Identity verified",          "Identity not verified"),
@@ -265,7 +264,6 @@ def _build_strengths_weaknesses(row: dict, shap_vals: dict) -> tuple:
         "has_tv":                     ("TV provided",                "No TV"),
         "has_washer":                 ("Washer available",           "No washer"),
     }
-
     for feat, (pos_label, neg_label) in checks.items():
         val = row.get(feat, 0)
         if val and val == val and float(val) > 0:
@@ -291,12 +289,12 @@ def _build_strengths_weaknesses(row: dict, shap_vals: dict) -> tuple:
 
     theme_feats = [f for f in shap_vals if f.startswith("theme_") and "_mean" in f]
     if theme_feats:
-        best_theme  = max(theme_feats, key=lambda f: shap_vals[f])
-        worst_theme = min(theme_feats, key=lambda f: shap_vals[f])
-        if shap_vals[best_theme] > 0:
-            strengths.append(f"Strong {FEATURE_LABELS.get(best_theme, best_theme).lower()}")
-        if shap_vals[worst_theme] < -0.05:
-            weaknesses.append(f"Weak {FEATURE_LABELS.get(worst_theme, worst_theme).lower()}")
+        best  = max(theme_feats, key=lambda f: shap_vals[f])
+        worst = min(theme_feats, key=lambda f: shap_vals[f])
+        if shap_vals[best] > 0:
+            strengths.append(f"Strong {FEATURE_LABELS.get(best, best).lower()}")
+        if shap_vals[worst] < -0.05:
+            weaknesses.append(f"Weak {FEATURE_LABELS.get(worst, worst).lower()}")
 
     ac = row.get("amenity_count", 0)
     if ac >= 35:
@@ -311,7 +309,7 @@ def _build_strengths_weaknesses(row: dict, shap_vals: dict) -> tuple:
 
 def register_advisor_callbacks(app):
 
-    # ── Sync dcc.Store → dropdown when switching from Tab 1 ───────────────
+    # ── Sync map click → dropdown ──────────────────────────────────────────
     @app.callback(
         Output("adv-listing-select", "value"),
         Input("selected-listing-id", "data"),
@@ -326,37 +324,48 @@ def register_advisor_callbacks(app):
             return listing_id
         return no_update
 
-    # ── Main: listing selected → full advisor panel ────────────────────────
+    # ── Listing selected → full advisor panel ──────────────────────────────
     @app.callback(
-        Output("adv-output-panel",   "children"),
-        Input("adv-listing-select",  "value"),
-        State("selected-city",       "data"),
+        Output("adv-output-panel",  "children"),
+        Output("adv-agent-context", "data"),
+        Input("adv-listing-select", "value"),
+        State("selected-city",      "data"),
     )
     def update_advisor_panel(listing_id, city):
+        empty_ctx = {"city": city or CITIES[0], "has_listing": False}
         if listing_id is None:
-            return _empty_panel()
+            return _empty_panel(), empty_ctx
 
         try:
             listing_id = int(listing_id)
         except (ValueError, TypeError):
-            return _empty_panel()
+            return _empty_panel(), empty_ctx
 
         df, model, features, fillna_medians, meta = _get_city_assets(city)
-
         matches = df[df["id"] == listing_id]
         if matches.empty:
-            return _empty_panel()
+            return _empty_panel(), empty_ctx
 
         row = matches.iloc[0].to_dict()
 
         try:
-            shap_vals, base_value = _compute_shap(row, model, features, fillna_medians)
+            shap_vals, _ = _compute_shap(row, model, features, fillna_medians)
         except Exception:
-            shap_vals, base_value = {}, 0.0
+            shap_vals = {}
 
         shap_drivers          = _build_shap_drivers(shap_vals, top_n=10)
         recommendations       = _build_recommendations(row, shap_vals, fillna_medians)
         strengths, weaknesses = _build_strengths_weaknesses(row, shap_vals)
+
+        agent_context = {
+            "city":            city or CITIES[0],
+            "has_listing":     True,
+            "row":             row,
+            "shap_drivers":    shap_drivers,
+            "recommendations": recommendations,
+            "strengths":       strengths,
+            "weaknesses":      weaknesses,
+        }
 
         return build_advisor_panel(
             row=row,
@@ -364,4 +373,70 @@ def register_advisor_callbacks(app):
             recommendations=recommendations,
             strengths=strengths,
             weaknesses=weaknesses,
+        ), agent_context
+
+    # ── Toggle AI controls based on whether a listing is selected ─────────
+    @app.callback(
+        Output("adv-agent-question",    "disabled"),
+        Output("adv-agent-ask-btn",     "disabled"),
+        Output("adv-agent-generate-btn","disabled"),
+        Output("adv-agent-status",      "children"),
+        Input("adv-agent-context",      "data"),
+    )
+    def toggle_advisor_agent_controls(agent_context):
+        has_listing = bool(agent_context and agent_context.get("has_listing"))
+        if not agent_enabled():
+            return True, True, True, "AI agent disabled — set ENABLE_AGENT=true in .env"
+        if has_listing:
+            return False, False, False, "Listing selected — ask a question or generate an action plan."
+        return True, True, True, "Select a listing to unlock AI features."
+
+    # ── AI: Q&A or action plan ─────────────────────────────────────────────
+    @app.callback(
+        Output("adv-agent-content",     "children"),
+        Input("adv-agent-ask-btn",      "n_clicks"),
+        Input("adv-agent-generate-btn", "n_clicks"),
+        State("adv-agent-question",     "value"),
+        State("adv-agent-context",      "data"),
+        prevent_initial_call=True,
+    )
+    def generate_advisor_agent_output(ask_clicks, plan_clicks, question, agent_context):
+        trigger = ctx.triggered_id
+        if not agent_context or not agent_context.get("has_listing"):
+            return "Please select a listing first."
+
+        unavailable = (
+            "AI agent unavailable. Add to .env:\n\n"
+            "```\nENABLE_AGENT=true\n"
+            "AGENT_PROVIDER=anthropic\n"
+            "ANTHROPIC_API_KEY=sk-ant-...\n```"
         )
+
+        if trigger == "adv-agent-ask-btn":
+            q = (question or "").strip()
+            if not q:
+                return "Please enter a question."
+            listing_context = {
+                "row":             agent_context.get("row", {}),
+                "shap_drivers":    agent_context.get("shap_drivers", []),
+                "recommendations": agent_context.get("recommendations", []),
+                "strengths":       agent_context.get("strengths", []),
+                "weaknesses":      agent_context.get("weaknesses", []),
+            }
+            text = build_advisor_agent_answer(
+                city=agent_context.get("city", CITIES[0]),
+                question=q,
+                listing_context=listing_context,
+            )
+            return text or unavailable
+
+        # Generate action plan
+        text = build_advisor_agent_plan(
+            city=agent_context.get("city", CITIES[0]),
+            row=agent_context.get("row", {}),
+            shap_drivers=agent_context.get("shap_drivers", []),
+            recommendations=agent_context.get("recommendations", []),
+            strengths=agent_context.get("strengths", []),
+            weaknesses=agent_context.get("weaknesses", []),
+        )
+        return text or unavailable

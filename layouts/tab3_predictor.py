@@ -203,7 +203,7 @@ def _empty_output_panel():
 
 # ── Output panel ──────────────────────────────────────────────────────────────
 
-def build_output_panel(result: dict):
+def build_output_panel(result: dict,whatif: dict = None):
     """
     Build the full result panel from the predict_price() result dict.
     """
@@ -218,12 +218,20 @@ def build_output_panel(result: dict):
 
     pct_vs_prop = ((predicted_price - prop_median) / prop_median) * 100
 
-    return html.Div([
+    panels = [
         _predicted_price_card(predicted_price),
-        _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_nbhd, property_type, prop_median, pct_vs_prop),
+        _market_comparison_card(predicted_price, neighbourhood, nbhd_median,
+                                pct_vs_nbhd, property_type, prop_median, pct_vs_prop),
         _shap_drivers_card(drivers, predicted_price),
         _amenity_tips_card(amenity_gaps, neighbourhood, pct_vs_nbhd, result.get("city", "sf")),
-    ])
+    ]
+
+    # Show what-if results when available
+    if whatif and whatif.get("scenarios"):
+        panels.append(_whatif_card(whatif))
+
+    panels.append(_investor_agent_panel())
+    return html.Div(panels, style={"display": "flex", "flexDirection": "column", "gap": "16px"})
 
 
 def _predicted_price_card(predicted_price):
@@ -242,7 +250,7 @@ def _predicted_price_card(predicted_price):
                 className="text-muted small mt-1"
             ),
         ], className="text-center py-4")
-    ], className="mb-3")
+    ])
 
 
 def _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_nbhd, property_type, prop_median, pct_vs_prop):
@@ -267,7 +275,7 @@ def _market_comparison_card(predicted_price, neighbourhood, nbhd_median, pct_vs_
                 ], width=6),
             ]),
         ])
-    ], className="mb-3")
+    ])
 
 
 def _shap_drivers_card(drivers: list, predicted_price: float):
@@ -331,7 +339,7 @@ def _shap_drivers_card(drivers: list, predicted_price: float):
                 className="text-muted small mb-0"
             ),
         ])
-    ], className="mb-3")
+    ])
 
 
 def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: float, city: str = "sf"):
@@ -411,3 +419,150 @@ def _amenity_tips_card(amenity_gaps: list, neighbourhood: str, pct_vs_nbhd: floa
             dbc.ListGroup(tip_items, flush=True),
         ])
     ], )
+
+def _whatif_card(whatif: dict):
+    base_price = whatif.get("base_price", 0)
+    budget     = whatif.get("budget", 0)
+    scenarios  = whatif.get("scenarios", [])
+
+    rows = []
+    for i, s in enumerate(scenarios):
+        uplift = s.get("uplift_usd", 0)
+        color  = "#34C759" if uplift > 0 else "#FF3B30"
+        rows.append(
+            html.Div([
+                html.Div([
+                    html.Span(f"#{i+1}  {s['name']}",
+                              style={"fontSize": "13px", "fontWeight": "600",
+                                     "color": "#1D1D1F"}),
+                    html.Span(f"  +${uplift:,.0f}/night",
+                              style={"fontSize": "13px", "fontWeight": "600",
+                                     "color": color}),
+                ], style={"marginBottom": "2px"}),
+                html.P(
+                    f"Est. cost: ${s.get('estimated_budget', 0):,.0f}  •  "
+                    + ",  ".join(s.get("changes", [])),
+                    style={"fontSize": "12px", "color": "#6E6E73", "margin": "0 0 12px"}
+                ),
+            ])
+        )
+
+        narrative = whatif.get("llm_narrative")
+        narrative_section = []
+        if narrative:
+            narrative_section = [
+                html.Hr(style={"margin": "12px 0", "borderColor": "#F2F2F7"}),
+                dcc.Markdown(narrative,
+                            style={"fontSize": "13px", "color": "#3A3A3C",
+                                    "lineHeight": "1.6"},
+                            className="markdown-body"),
+            ]
+
+    return dbc.Card([
+        dbc.CardBody([
+            html.P("WHAT-IF SCENARIOS", style={
+                "fontSize": "11px", "fontWeight": "600",
+                "color": "#AEAEB2", "letterSpacing": "0.8px", "marginBottom": "4px",
+            }),
+            html.P(
+                f"Top upgrades within ${budget:,.0f} budget, ranked by price uplift "
+                f"and booking competitiveness.",
+                style={"fontSize": "13px", "color": "#6E6E73", "marginBottom": "16px"},
+            ),
+            *rows,
+            *narrative_section,
+        ]),
+    ])
+
+def _investor_agent_panel():
+    """AI brief, Q&A, and what-if scenario panel for the Investor Predictor."""
+    from dash import html, dcc
+    import dash_bootstrap_components as dbc
+ 
+    C = {
+        "blue":  "#0071E3",
+        "gray1": "#1D1D1F",
+        "gray3": "#6E6E73",
+        "gray4": "#AEAEB2",
+        "gray6": "#F2F2F7",
+    }
+ 
+    return dbc.Card([
+        dbc.CardBody([
+            html.P("AI INVESTMENT ADVISOR", style={
+                "fontSize": "11px", "fontWeight": "600",
+                "color": C["gray4"], "letterSpacing": "0.8px",
+                "marginBottom": "4px",
+            }),
+            html.P(
+                "Generate an investment brief, run what-if scenarios within a budget, "
+                "or ask a question about this prediction.",
+                style={"fontSize": "13px", "color": C["gray3"], "marginBottom": "16px"},
+            ),
+ 
+            # Budget input
+            dbc.Row([
+                dbc.Col([
+                    html.Label("Budget ($)", style={"fontSize": "12px", "color": C["gray3"]}),
+                    dbc.Input(
+                        id="inv-whatif-budget",
+                        type="number", value=1500, min=0, step=100,
+                        style={"borderRadius": "10px", "fontSize": "13px",
+                               "border": "1px solid #D1D1D6"},
+                    ),
+                ], width=4),
+            ]),
+ 
+            # Question input
+            dbc.Textarea(
+                id="inv-agent-question",
+                placeholder="e.g. Should I prioritize adding parking or a gym?",
+                style={
+                    "fontSize": "13px", "borderRadius": "10px",
+                    "border": "1px solid #D1D1D6",
+                    "padding": "10px 12px", "resize": "none",
+                    "height": "72px", "marginBottom": "10px",
+                    "width": "100%", "marginTop": "8px",
+                },
+            ),
+ 
+            # Buttons
+            dbc.Row([
+                dbc.Col(
+                    dbc.Button("Investment brief",
+                               id="inv-agent-brief-btn", n_clicks=0,
+                               style={"background": C["blue"], "border": "none",
+                                      "borderRadius": "10px", "fontSize": "13px",
+                                      "fontWeight": "500", "width": "100%"}),
+                    width=4
+                ),
+                dbc.Col(
+                    dbc.Button("What-if scenarios",
+                               id="inv-whatif-generate-btn", n_clicks=0,
+                               style={"background": "#F2F2F7", "border": "none",
+                                      "borderRadius": "10px", "fontSize": "13px",
+                                      "fontWeight": "500",
+                                      "width": "100%"}),
+                    width=4
+                ),
+                dbc.Col(
+                    dbc.Button("Ask",
+                               id="inv-agent-ask-btn", n_clicks=0,
+                               style={"background": "#F2F2F7", "border": "none",
+                                      "borderRadius": "10px", "fontSize": "13px",
+                                      "fontWeight": "500",
+                                      "width": "100%"}),
+                    width=4
+                ),
+            ], className="mb-3 g-2"),
+ 
+            # Response area
+            dcc.Loading(
+                dcc.Markdown(id="inv-agent-response",
+                             style={"fontSize": "13px", "color": C["gray1"],
+                                    "lineHeight": "1.6"},
+                             className="markdown-body"),
+                type="circle", color=C["blue"],
+            ),
+        ]),
+    ], className="mt-3")

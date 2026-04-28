@@ -250,6 +250,42 @@ All three callbacks preload every city's data and models into memory at startup 
 **Persistent hidden buttons** — the home page navigation uses persistent hidden `dbc.Button` elements and a clientside callback that mirrors visible card button clicks to them. This works around Dash's requirement that all callback Inputs exist in the DOM at all times.
  
 ---
+
+## Testing
+ 
+The project uses `pytest` for unit testing. Tests cover the core data pipeline and AI agent logic — no API keys or real data files required.
+ 
+```bash
+# Install pytest if not already in your environment
+pip install pytest
+ 
+# Run all tests from the project root
+python -m pytest
+```
+ 
+### What is tested
+ 
+- **`tests/test_create_clean_dataset.py`** — price/percentage cleaning, boolean parsing, bathroom text parsing, amenity counting, feature engineering, and merge logic
+- **`tests/test_llm_agent.py`** — environment config, LRU cache behaviour, cache key determinism, graceful degradation when agent is disabled, successful API response parsing, and HTTP/network error handling
+All network calls are mocked — tests run fully offline.
+ 
+---
+ 
+## CI (Continuous Integration)
+ 
+Every push and pull request to `main` triggers the GitHub Actions workflow defined in `.github/workflows/python-ci.yml`. It runs the full test suite across Python 3.10, 3.11, and 3.12 in parallel.
+ 
+```
+Push / PR to main
+    → Spin up Ubuntu VM (×3 Python versions)
+    → pip install -r requirements.txt
+    → python -m pytest
+    → ✓ Pass or ✗ Fail reported on the commit / PR
+```
+ 
+This means any regression in the data pipeline or AI agent logic is caught before it reaches `main`.
+ 
+---
  
 ## Git
  

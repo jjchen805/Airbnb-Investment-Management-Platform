@@ -309,20 +309,53 @@ def _build_strengths_weaknesses(row, shap_vals):
 
 def register_advisor_callbacks(app):
 
-    # ── Sync map click → dropdown ──────────────────────────────────────────
+    # ── Neighbourhood filter OR map click → update listing dropdown ───────
+    # Merged into one callback to avoid duplicate Output on adv-listing-select.value
     @app.callback(
-        Output("adv-listing-select", "value"),
-        Input("selected-listing-id", "data"),
-        State("main-tabs",           "value"),
-        State("selected-city",       "data"),
+        Output("adv-listing-select",  "options"),
+        Output("adv-listing-select",  "value"),
+        Output("adv-listing-count",   "children"),
+        Input("adv-neighbourhood-filter", "value"),
+        Input("selected-listing-id",      "data"),
+        State("main-tabs",                "value"),
+        State("selected-city",            "data"),
+        State("adv-listing-select",       "value"),
     )
-    def sync_from_map(listing_id, current_tab, city):
-        if current_tab != "tab-advisor" or not listing_id:
-            return no_update
-        df = ALL_DF.get(city, next(iter(ALL_DF.values())))
-        if listing_id in df["id"].values:
-            return listing_id
-        return no_update
+    def update_listing_dropdown(neighbourhood, map_listing_id, current_tab, city, current_value):
+        from layouts.tab2_advisor import _build_listing_options
+        trigger  = ctx.triggered_id
+        df       = ALL_DF.get(city, next(iter(ALL_DF.values())))
+        options  = _build_listing_options(df, neighbourhood)
+
+        # Map click on Tab 1 → jump straight to that listing, ignore filter
+        if trigger == "selected-listing-id":
+            if current_tab == "tab-advisor" and map_listing_id and map_listing_id in df["id"].values:
+                new_value = map_listing_id
+            else:
+                new_value = current_value
+        else:
+            # Neighbourhood filter changed — keep selection only if still valid
+            valid_values = {o["value"] for o in options}
+            new_value    = current_value if current_value in valid_values else None
+
+        nbhd_label = neighbourhood if neighbourhood and neighbourhood != "__all__" else "all neighbourhoods"
+        count_text = f"{len(options):,} listings in {nbhd_label}"
+
+        return options, new_value, count_text
+
+    # ── City change → reset neighbourhood filter ───────────────────────────
+    @app.callback(
+        Output("adv-neighbourhood-filter", "options"),
+        Output("adv-neighbourhood-filter", "value"),
+        Input("selected-city", "data"),
+    )
+    def reset_filters_on_city_change(city):
+        df             = ALL_DF.get(city, next(iter(ALL_DF.values())))
+        neighbourhoods = sorted(df["neighbourhood_top"].dropna().unique().tolist())
+        options        = [{"label": "All neighbourhoods", "value": "__all__"}] + [
+            {"label": n, "value": n} for n in neighbourhoods
+        ]
+        return options, "__all__"
 
     # ── Listing selected → full advisor panel ──────────────────────────────
     @app.callback(

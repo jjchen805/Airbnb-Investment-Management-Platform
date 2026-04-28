@@ -2,6 +2,7 @@
 Tab 2 — Superhost Advisor Layout
 """
 from dash import html, dcc
+import pandas as pd
 import dash_bootstrap_components as dbc
 
 
@@ -40,13 +41,14 @@ C = {
 
 
 def advisor_layout(df_listings, selected_listing_id=None):
-    listing_options = [
-        {"label": f"{row['name'][:45]}  —  {row['neighbourhood_top']}", "value": row["id"]}
-        for _, row in df_listings[["id", "name", "neighbourhood_top"]]
-            .dropna()
-            .sort_values("neighbourhood_top")
-            .iterrows()
+    # Neighbourhood options for filter dropdown
+    neighbourhoods = sorted(df_listings["neighbourhood_top"].dropna().unique().tolist())
+    neighbourhood_options = [{"label": "All neighbourhoods", "value": "__all__"}] + [
+        {"label": n, "value": n} for n in neighbourhoods
     ]
+
+    # Full listing options (neighbourhood filter narrows these via callback)
+    listing_options = _build_listing_options(df_listings, neighbourhood=None)
 
     return html.Div([
         # Page header
@@ -54,48 +56,105 @@ def advisor_layout(df_listings, selected_listing_id=None):
             html.H4("Superhost Advisor",
                     style={"fontSize": "22px", "fontWeight": "700",
                            "color": C["gray1"], "marginBottom": "4px"}),
-            html.P("Select an existing listing to see its Superhost potential, "
-                   "weaknesses, and actionable recommendations.",
+            html.P("Filter by neighborhood, then search for a listing by name, address, or ID.",
                    style={"fontSize": "14px", "color": C["gray3"], "margin": 0}),
         ], style={"marginBottom": "24px"}),
 
-        # Listing selector
+        # Filters row
         dbc.Row([
+            # Neighbourhood filter
             dbc.Col([
+                html.Label("Neighborhood",
+                           style={"fontSize": "12px", "fontWeight": "600",
+                                  "color": C["gray3"], "marginBottom": "6px",
+                                  "display": "block", "letterSpacing": "0.4px"}),
+                dcc.Dropdown(
+                    id="adv-neighbourhood-filter",
+                    options=neighbourhood_options,
+                    value="__all__",
+                    clearable=False,
+                    searchable=True,
+                    placeholder="All neighborhoods",
+                    style={"fontSize": "14px"},
+                ),
+            ], md=4),
+
+            # Listing search
+            dbc.Col([
+                html.Label("Listing",
+                           style={"fontSize": "12px", "fontWeight": "600",
+                                  "color": C["gray3"], "marginBottom": "6px",
+                                  "display": "block", "letterSpacing": "0.4px"}),
                 dbc.InputGroup([
                     dbc.InputGroupText(
                         html.I(className="bi bi-search",
                                style={"color": C["gray4"], "fontSize": "13px"}),
-                        style={"background": "#fff", "border": f"1px solid #D1D1D6",
+                        style={"background": "#fff", "border": "1px solid #D1D1D6",
                                "borderRight": "none", "borderRadius": "10px 0 0 10px"}
                     ),
                     dcc.Dropdown(
                         id="adv-listing-select",
                         options=listing_options,
                         value=selected_listing_id,
-                        placeholder="Search or select a listing...",
+                        placeholder="Search by name, neighborhood, or price...",
                         clearable=True,
+                        searchable=True,
                         style={"flex": "1", "fontSize": "14px"},
                     ),
                 ]),
-            ], md=8),
+            ], md=5),
+
+            # Map click hint
             dbc.Col([
+                html.Div(style={"height": "24px"}),  # spacer to align with inputs
                 html.Div([
                     html.I(className="bi bi-info-circle",
-                           style={"color": C["blue"], "marginRight": "8px", "fontSize": "13px"}),
+                           style={"color": C["blue"], "marginRight": "8px",
+                                  "fontSize": "13px"}),
                     html.Span("Or click a listing on the Market Explorer map.",
                               style={"fontSize": "13px", "color": C["gray3"]}),
                 ], style={
                     "background": "#EBF5FB", "borderRadius": "10px",
                     "padding": "10px 14px", "display": "flex", "alignItems": "center",
+                    "height": "38px",
                 }),
-            ], md=4),
-        ], className="mb-4 align-items-center g-3"),
+            ], md=3),
+        ], className="mb-4 align-items-end g-3"),
+
+        # Listing count badge
+        html.Div(id="adv-listing-count",
+                 style={"fontSize": "12px", "color": C["gray4"],
+                        "marginBottom": "20px"}),
 
         # Output panel
         html.Div(id="adv-output-panel", children=[_empty_panel()]),
 
     ], style={"padding": "24px"})
+
+
+def _build_listing_options(df, neighbourhood=None):
+    """Build listing dropdown options, optionally filtered by neighbourhood."""
+    df_filt = df.copy()
+    if neighbourhood and neighbourhood != "__all__":
+        df_filt = df_filt[df_filt["neighbourhood_top"] == neighbourhood]
+
+    df_filt = (df_filt[["id", "name", "neighbourhood_top", "price_clean",
+                          "host_is_superhost", "room_type"]]
+               .dropna(subset=["id", "name"])
+               .sort_values(["neighbourhood_top", "name"]))
+
+    options = []
+    for _, row in df_filt.iterrows():
+        name   = str(row["name"])[:40]
+        nbhd   = row.get("neighbourhood_top", "")
+        price  = row.get("price_clean")
+        is_sh  = row.get("host_is_superhost", 0)
+        star   = " ⭐" if is_sh else ""
+        price_str = f" · ${price:,.0f}/night" if pd.notna(price) else ""
+        label  = f"{name}{star}  —  {nbhd}{price_str}"
+        options.append({"label": label, "value": row["id"]})
+
+    return options
 
 
 def _empty_panel():
@@ -416,6 +475,7 @@ def _info_row(icon, text, accent):
 def _advisor_agent_panel():
     """AI Q&A + action plan panel for the Superhost Advisor."""
     from dash import html, dcc
+    import pandas as pd
     import dash_bootstrap_components as dbc
  
     C = {

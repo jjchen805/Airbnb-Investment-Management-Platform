@@ -1,8 +1,7 @@
 # Data files
-data/
-
-# Model files
-models/
+data/reviews_*.csv
+data/listings_*.csv
+data/clean_airbnb_dataset_*.csv
 
 # Python cache
 __pycache__/
